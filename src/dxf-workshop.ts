@@ -162,12 +162,19 @@ $manifestFile = Join-Path $folder 'delimitations.json'
 $manifest = Get-Content -LiteralPath $manifestFile -Raw -Encoding UTF8 | ConvertFrom-Json
 $dxf = Get-Item -LiteralPath (Join-Path $folder $manifest.sourceFile)
 $dwg = Join-Path $folder $manifest.outputFile
+$errorFile = Join-Path $folder 'ERREUR_CONVERSION.txt'
+Remove-Item -LiteralPath $errorFile -Force -ErrorAction SilentlyContinue
 $document = $null
 try {
   Write-Host 'Ouverture du DXF original dans AutoCAD...'
   $autocad = New-Object -ComObject AutoCAD.Application
   $autocad.Visible = $true
-  $document = $autocad.Documents.Open($dxf.FullName, $false)
+  $lastOpenError = $null
+  for ($attempt = 1; $attempt -le 10 -and -not $document; $attempt++) {
+    try { $document = $autocad.Documents.Open($dxf.FullName, $false) }
+    catch { $lastOpenError = $_; Start-Sleep -Seconds 2 }
+  }
+  if (-not $document) { throw $lastOpenError }
   Write-Host 'Creation des calques et des contours...'
   foreach ($layer in $manifest.layers) {
     try { $cadLayer = $document.Layers.Item([string]$layer.name) }
@@ -189,7 +196,9 @@ try {
   $document.SaveAs($dwg, 64)
   Write-Host "DWG cree : $dwg"
 } catch {
+  ($_ | Format-List * -Force | Out-String) | Set-Content -LiteralPath $errorFile -Encoding UTF8
   Write-Host "Conversion impossible : $($_.Exception.Message)" -ForegroundColor Red
+  Write-Host "Le detail est enregistre dans : $errorFile" -ForegroundColor Yellow
   exit 1
 } finally {
   if ($document) { try { $document.Close($false) } catch {} }

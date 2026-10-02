@@ -60,6 +60,7 @@ test("prepares a local AutoCAD package for a real DWG conversion", () => {
   assert.match(strFromU8(files["convertir-en-dwg.ps1"]),/AutoCAD\.Application/);
   assert.match(strFromU8(files["convertir-en-dwg.ps1"]),/AddLightWeightPolyline/);
   assert.match(strFromU8(files["convertir-en-dwg.ps1"]),/SaveAs\(\$dwg, 64\)/);
+  assert.match(strFromU8(files["convertir-en-dwg.ps1"]),/ERREUR_CONVERSION\.txt/);
   assert.match(strFromU8(files["CONVERTIR_EN_DWG.cmd"]),/convertir-en-dwg\.ps1/);
 });
 
