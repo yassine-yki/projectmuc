@@ -1,8 +1,8 @@
-const CACHE="pistache-shell-4eeef22efe84a449";
-const PLAN_CACHE='pistache-plans-v1';
-const FILES=["/index.html","/favicon.svg","/vendor/dxf-parser.js","/mixed-use-avancement-template.xlsx","/assets/equipment-map-Btw5zYXf.js","/assets/html2canvas-Dn6bw578.js","/assets/index-djr7rkei.css","/assets/index-Djrgjhuz.js","/assets/index.es-BUNzEJnM.js","/assets/jspdf.es.min-BJx27I-X.js","/assets/purify.es-Bvo9QlJ8.js","/assets/rolldown-runtime-hePW80VL.js"];
+const CACHE="pistache-shell-c6dc601786f9c8d2";
+const PLAN_CACHE='pistache-plans-v2';
+const FILES=["/index.html","/favicon.svg","/vendor/dxf-parser.js","/mixed-use-avancement-template.xlsx","/assets/equipment-map-CbLbRbYA.js","/assets/html2canvas-Dn6bw578.js","/assets/index-BGDKuyan.js","/assets/index-TLmThIb9.css","/assets/index.es-csNjPSgL.js","/assets/jspdf.es.min-DdfSgY_-.js","/assets/purify.es-Bvo9QlJ8.js","/assets/rolldown-runtime-hePW80VL.js"];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)).then(()=>self.skipWaiting())));
-self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('pistache-shell-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>(k.startsWith('pistache-shell-')&&k!==CACHE)||(k.startsWith('pistache-plans-')&&k!==PLAN_CACHE)).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
   const url=new URL(event.request.url);
   if(event.request.method!=='GET'||url.origin!==self.location.origin)return;

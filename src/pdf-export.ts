@@ -78,8 +78,8 @@ async function svgPng(svg:string):Promise<{data:string;width:number;height:numbe
 }
 
 function drawHeader(pdf:jsPDF,dateLabel:string,floorLabel:string,continued=false):number {
-  pdf.setFillColor(39,83,47);pdf.rect(0,0,297,18,"F");
-  pdf.setTextColor(255,255,255);pdf.setFont("helvetica","bold");pdf.setFontSize(15);
+  pdf.setFillColor(255,255,255);pdf.rect(0,0,297,18,"F");
+  pdf.setTextColor(31,45,35);pdf.setFont("helvetica","bold");pdf.setFontSize(15);
   pdf.text("MUC - Avancement journalier",33,11.5);
   pdf.setFont("helvetica","normal");pdf.setFontSize(9);pdf.text(dateLabel,285,11.2,{align:"right"});
   pdf.setTextColor(26,42,33);pdf.setFont("helvetica","bold");pdf.setFontSize(13);

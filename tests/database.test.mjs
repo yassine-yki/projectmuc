@@ -527,39 +527,6 @@ test('PISTACHE schema, RLS and transactional RPCs', async (t) => {
   assert.equal((await query("select name from storage.objects where name=$1",[path])).length,0);
   assert.equal((await first('select private.can_add_task_photo($1) allowed',[task])).allowed,false);
  });
-
- await t.test('BOH tracking seeds every floor and finish while enforcing project roles and correction rules',async()=>{
- await db.exec('reset role');
- await db.exec(await readFile(new URL('../supabase/migrations/0021_boh_floor_tracking.sql',import.meta.url),'utf8'));
- await db.exec(await readFile(new URL('../supabase/migrations/0022_boh_plan_markup.sql',import.meta.url),'utf8'));
- await db.exec(await readFile(new URL('../supabase/migrations/0023_boh_same_day_corrections.sql',import.meta.url),'utf8'));
-  assert.equal((await first('select count(*)::int total from public.boh_progress where project_id=$1',[project])).total,56);
-  const area=await first("select * from public.boh_progress where project_id=$1 and floor_code='rdc' and finish_code='tile-dark-30'",[project]);
-  await login(viewer);
-  assert.equal((await query('select id from public.boh_progress where project_id=$1',[project])).length,56);
-  await reject('select * from public.submit_boh_progress($1,$2,$3::smallint,$4)',[area.id,area.version,20,''],/permission_denied/);
-  await login(worker);
- const markup=[{mode:'done',size:.012,points:[[.2,.3],[.25,.35]]},{mode:'pending',size:.012,points:[[.3,.4],[.35,.45]]}];
- const firstUpdate=await first('select * from public.submit_boh_progress($1,$2,$3::smallint,$4,$5::jsonb)',[area.id,area.version,35,'',JSON.stringify(markup)]);
- assert.equal(firstUpdate.progress,35);
- assert.deepEqual(firstUpdate.markup,markup);
- await db.exec('reset role');
- assert.deepEqual(await first('select before_progress,after_progress,after_markup from public.boh_progress_updates where boh_progress_id=$1',[area.id]),{before_progress:0,after_progress:35,after_markup:markup});
-  await login(worker);
-  const sameDay=await first('select * from public.submit_boh_progress($1,$2,$3::smallint,$4)',[area.id,firstUpdate.version,25,'']);
-  assert.equal(sameDay.progress,25);
-  const completed=await first('select * from public.submit_boh_progress($1,$2,$3::smallint,$4)',[area.id,sameDay.version,100,'']);
-  const correctedComplete=await first('select * from public.submit_boh_progress($1,$2,$3::smallint,$4)',[area.id,completed.version,40,'']);
-  assert.equal(correctedComplete.progress,40);
-  await db.exec('reset role');
-  await query("update public.boh_progress set confirmed_day=current_date-1 where id=$1",[area.id]);
-  await login(worker);
-  await reject('select * from public.submit_boh_progress($1,$2,$3::smallint,$4)',[area.id,correctedComplete.version,10,''],/correction_reason_required/);
-  const corrected=await first('select * from public.submit_boh_progress($1,$2,$3::smallint,$4)',[area.id,correctedComplete.version,10,'Erreur de métrage']);
-  assert.equal(corrected.progress,10);
-  await login(outsider);
-  assert.equal((await query('select id from public.boh_progress where project_id=$1',[project])).length,0);
- });
  });
 
 

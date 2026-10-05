@@ -40,8 +40,8 @@
       <div class="project-list" id="projectList"></div>
     </dialog>
     <dialog class="project-dialog tracking-mode-dialog" id="trackingModeDialog" aria-labelledby="trackingModeTitle">
-      <div class="project-dialog-header"><span class="eyebrow">Projet MUC</span><h2 id="trackingModeTitle">Quel outil voulez-vous ouvrir ?</h2><p>Les suivis et la préparation des plans restent séparés dans le même projet.</p></div>
-      <div class="tracking-mode-list"><button type="button" data-tracking-mode="rooms"><strong>Suivi des chambres</strong><span>Chambres, salles de bain, tâches et plans DXF du R+2 au R+5.</span></button><button type="button" data-tracking-mode="equipment"><strong>Repérage des équipements</strong><span>Headboard, armoire, bar et vanity par TIP EXCEL, sur les plans du R+2 au R+5.</span></button><button type="button" data-tracking-mode="boh"><strong>BOH - Carrelage</strong><span>Avancement des revêtements de sol par finition et par étage, du SS-2 au N06.</span></button><button type="button" data-tracking-mode="workshop" data-admin-only><strong>Préparer un plan AutoCAD</strong><span>Délimiter les espaces par polylignes fermées et créer les calques de la légende.</span></button></div>
+      <div class="project-dialog-header"><span class="eyebrow">Projet MUC</span><h2 id="trackingModeTitle">Quel outil voulez-vous ouvrir ?</h2><p>Choisissez le suivi à ouvrir.</p></div>
+      <div class="tracking-mode-list"><button type="button" data-tracking-mode="rooms"><strong>Suivi des chambres</strong><span>Chambres, salles de bain, tâches et plans DXF du R+2 au R+5.</span></button><button type="button" data-tracking-mode="equipment"><strong>Repérage des équipements</strong><span>Headboard, armoire, bar et vanity par TIP EXCEL, sur les plans du R+2 au R+5.</span></button></div>
     </dialog>
 
     <header class="topbar">
@@ -244,37 +244,6 @@
         <div id="equipmentRoomDetail" class="equipment-room-detail"><strong>Sélectionnez une chambre sur le plan</strong></div>
         <div id="equipmentLegend" class="equipment-legend"></div>
       </aside>
-    </main>
-    <main id="bohWorkspace" class="boh-shell" hidden>
-      <section class="boh-plan-column">
-        <div class="boh-toolbar"><label class="field"><span>Étage</span><select id="bohFloorSelect"></select></label><div><span class="eyebrow">Plan de repérage</span><h2 id="bohFloorTitle">BOH - Carrelage</h2></div><strong id="bohSummary"></strong></div>
-        <div id="bohMarkupTools" class="boh-markup-tools" hidden><strong id="bohMarkupTitle">Délimitation sur le plan</strong><label class="boh-markup-section"><small>Finition concernée</small><select id="bohMarkupFinish" aria-label="Finition concernée"></select></label><div class="boh-markup-section"><small>État de la zone</small><div class="boh-markup-modes"><button type="button" id="bohMarkDone" class="active" aria-pressed="true"><span class="done"></span>Terminé</button><button type="button" id="bohMarkProgress" aria-pressed="false"><span class="progress"></span>En cours</button><button type="button" id="bohMarkTodo" aria-pressed="false"><span class="todo"></span>À faire</button></div></div><div class="boh-markup-section"><small>Outil</small><div class="boh-markup-modes"><button type="button" id="bohShapeRectangle" class="active" aria-pressed="true">▭ Rectangle</button><button type="button" id="bohShapePolygon" aria-pressed="false">⌁ Polyligne</button><button type="button" id="bohShapePan" aria-pressed="false">✋ Main</button><button type="button" id="bohShapeErase" aria-pressed="false">⌫ Effacer</button><button type="button" id="bohClosePolygon" hidden>Fermer le contour</button></div></div><div class="boh-markup-actions"><button type="button" id="bohMarkUndo">Annuler la zone</button><button type="button" id="bohMarkClear">Tout effacer</button><button type="button" id="bohMarkClose">Fermer</button></div><small id="bohMarkupHelp">Rectangle : posez un doigt, tirez puis relâchez. Pincez avec deux doigts pour zoomer.</small></div>
-        <div id="bohPlanViewport" class="boh-plan-viewport"><div id="bohPlanLayer" class="boh-plan-layer"><img id="bohPlanImage" alt="Plan de repérage des revêtements de sol BOH"><canvas id="bohMarkupCanvas" aria-label="Délimitation de l’avancement sur le plan"></canvas></div><button type="button" id="bohOpenMarkup" class="boh-open-markup" hidden>▭ Rectangle / ⌁ Polyligne</button><div class="boh-markup-legend"><span><i class="done"></i>Terminé</span><span><i class="progress"></i>En cours</span><span><i class="todo"></i>À faire</span></div><div class="boh-zoom-controls"><button type="button" id="bohZoomIn" aria-label="Agrandir">+</button><button type="button" id="bohZoomOut" aria-label="Réduire">−</button><button type="button" id="bohFitPlan">Ajuster</button><output id="bohZoomValue">100 %</output></div><div id="bohDraftActions" class="draft-actions boh-draft-actions" hidden><button class="button primary" type="button" id="confirmBohProgress">Valider</button><button class="button secondary" type="button" id="cancelBohProgress">Annuler</button></div></div>
-      </section>
-      <aside class="boh-progress-panel"><div class="page-heading"><span class="eyebrow">Finitions de la légende</span><h2>Avancement par zone</h2><p>Chaque finition est suivie séparément pour l’étage affiché.</p></div><p id="bohStatus" role="status"></p><div id="bohFinishList" class="boh-finish-list"></div></aside>
-    </main>
-    <main id="dxfWorkshop" class="dxf-workshop" hidden>
-      <aside class="dxf-workshop-panel">
-        <div class="page-heading"><span class="eyebrow">Préparation AutoCAD</span><h2>Détection automatique</h2><p>Importez un DXF : l’outil lit les motifs, les couleurs et les noms de la légende, recherche les hachures identiques dans le plan puis crée leurs calques et leurs contours.</p></div>
-        <label class="field"><span>Plan AutoCAD au format DXF</span><input id="workshopFile" type="file" accept=".dxf,text/plain"></label>
-        <button id="workshopAutoDetect" class="button primary" type="button">Relancer la détection automatique</button>
-        <p id="workshopDetectionSummary" class="workshop-detection-summary">Aucun plan analysé.</p>
-        <details class="workshop-manual-tools"><summary>Corriger exceptionnellement la détection</summary><div>
-        <div class="workshop-grid-two"><label class="field"><span>Niveau</span><select id="workshopLevel"><option value="NIVEAU">NIVEAU</option></select></label><form id="workshopAddLevel" class="inline-create"><label class="field"><span>Ajouter un niveau</span><input id="workshopLevelName" maxlength="60" placeholder="Ex. R+2, RDC, SS-1"></label><button class="button secondary" type="submit">Ajouter</button></form></div>
-        <form id="workshopAddLegend" class="inline-create"><label class="field"><span>Nom de la légende / du calque</span><input id="workshopLegendName" list="workshopDetectedTexts" maxlength="120" placeholder="Ex. Chambre, Couloir, Carrelage 60×60"></label><button class="button secondary" type="submit">Ajouter</button></form>
-        <datalist id="workshopDetectedTexts"></datalist>
-        <label class="field"><span>Calque actif</span><select id="workshopLayer"><option value="">Ajoutez un élément de légende</option></select></label>
-        <div class="workshop-tools" aria-label="Outils de dessin"><button id="workshopDraw" class="active" type="button">⌁ Polyligne</button><button id="workshopPan" type="button">✋ Main</button><button id="workshopClose" type="button">Fermer le contour</button><button id="workshopUndoPoint" type="button">Annuler le point</button></div>
-        <div class="workshop-tools"><button id="workshopDeleteZone" type="button">Supprimer le dernier contour</button><button id="workshopClear" type="button">Tout effacer</button></div>
-        </div></details>
-        <div class="workshop-actions"><button id="workshopExportDwg" class="button primary" type="button">Préparer le DWG</button><button id="workshopExportDxf" class="button secondary" type="button">Exporter le DXF</button><button id="workshopExportJson" class="button secondary" type="button">Sauvegarder le brouillon</button></div>
-        <p id="workshopStatus" class="access-hint" role="status">Importez un fichier DXF pour commencer.</p>
-        <div id="workshopZoneList" class="workshop-zone-list"></div>
-      </aside>
-      <section class="dxf-workshop-canvas">
-        <div class="workshop-canvas-heading"><div><span class="eyebrow">Plan de travail</span><h2 id="workshopPlanTitle">Aucun plan importé</h2></div><span id="workshopPlanSummary"></span></div>
-        <div id="workshopViewport" class="workshop-viewport"><svg id="workshopSvg" aria-label="Plan DXF à délimiter"></svg><div id="workshopEmpty" class="plan-empty">Importez un DXF. Le fichier peut contenir plusieurs niveaux.</div></div>
-      </section>
     </main>
 <section id="adminTeam" class="admin-page" hidden>
   <div class="page-heading"><h2>Équipe et affectations</h2><p>Une personne peut intervenir sur plusieurs blocs, à des étages différents.</p></div>

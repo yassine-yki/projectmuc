@@ -196,7 +196,7 @@ function ensurePlanStructure(model) {
     return `<circle class="equipment-room equipment-room-marker" data-room="${room.number}" cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}"><title></title></circle>`;
   }).join("");
   const labels = model.rooms.map((room) => `<text class="equipment-room-label" data-room-label="${room.number}" x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle">${room.number}</text><text class="equipment-tip-code" data-tip-code="${room.number}" x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y + labelSize * 1.05)}" font-size="${numberValue(labelSize * .68)}" text-anchor="middle"></text>`).join("");
-  svg.innerHTML = `<defs id="equipment-defs"></defs><g transform="scale(1 -1)">${roomShapes}</g><g class="equipment-architecture" transform="scale(1 -1)">${model.architecture}</g><g>${labels}</g>`;
+  svg.innerHTML = `<defs id="equipment-defs"></defs><image href="${model.architectureImage.data}" x="${numberValue(model.bounds.minX)}" y="${numberValue(-model.bounds.maxY)}" width="${numberValue(width)}" height="${numberValue(height)}" preserveAspectRatio="none" pointer-events="none"/><g transform="scale(1 -1)">${roomShapes}</g><g>${labels}</g>`;
   svg.dataset.floor = selectedFloor;
   return svg;
 }
@@ -259,8 +259,16 @@ async function floorModel(floor) {
   const Parser = window.DxfParser;
   if (!Parser) throw new Error("Le lecteur DXF n’est pas disponible.");
   const model = buildModel(new Parser().parseSync(source));
+  model.architectureImage = await svgJpeg(architectureSvg(model));
+  delete model.architecture;
   modelCache.set(floor.id, model);
   return model;
+}
+
+function architectureSvg(model) {
+  const width = model.bounds.maxX - model.bounds.minX;
+  const height = model.bounds.maxY - model.bounds.minY;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="${Math.round(1600 * height / width)}" viewBox="${numberValue(model.bounds.minX)} ${numberValue(-model.bounds.maxY)} ${numberValue(width)} ${numberValue(height)}"><rect x="${numberValue(model.bounds.minX)}" y="${numberValue(-model.bounds.maxY)}" width="${numberValue(width)}" height="${numberValue(height)}" fill="#fff"/><g transform="scale(1 -1)" fill="none" stroke="#7c8580" stroke-width="0.045" opacity="0.72">${model.architecture}</g></svg>`;
 }
 
 async function loadFloor() {
@@ -335,7 +343,7 @@ function reportSvg(model, floorId, equipment, category) {
     const height = code ? "1.88" : "1.22";
     return `<g><rect x="${numberValue(room.labelPoint.x - 1.22)}" y="${top}" width="2.44" height="${height}" rx="0.16" fill="#fff" fill-opacity="0.96" stroke="#18231d" stroke-width="0.09"/><text x="${x}" y="${numberValue(-room.labelPoint.y - (code ? 0.12 : -0.18))}" font-size="1.02" text-anchor="middle" font-family="Arial" font-weight="700" fill="#111">${room.number}</text>${code ? `<text x="${x}" y="${numberValue(-room.labelPoint.y + 0.58)}" font-size="0.64" text-anchor="middle" font-family="Arial" font-weight="700" fill="#111">${code}</text>` : ""}</g>`;
   }).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="${Math.round(1600 * height / width)}" viewBox="${numberValue(model.bounds.minX)} ${numberValue(-model.bounds.maxY)} ${numberValue(width)} ${numberValue(height)}"><rect width="100%" height="100%" fill="#fff"/><defs><pattern id="report-unavailable" width="0.65" height="0.65" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.65" height="0.65" fill="#555c58"/><rect width="0.2" height="0.65" fill="#aeb4b1"/></pattern>${patternDefinitions(visuals,"report-tip")}</defs><g transform="scale(1 -1)">${shapes}</g><g transform="scale(1 -1)" fill="none" stroke="#7c8580" stroke-width="0.045" opacity="0.72">${model.architecture}</g><g>${labels}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="${Math.round(1600 * height / width)}" viewBox="${numberValue(model.bounds.minX)} ${numberValue(-model.bounds.maxY)} ${numberValue(width)} ${numberValue(height)}"><defs><pattern id="report-unavailable" width="0.65" height="0.65" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.65" height="0.65" fill="#555c58"/><rect width="0.2" height="0.65" fill="#aeb4b1"/></pattern>${patternDefinitions(visuals,"report-tip")}</defs><g transform="scale(1 -1)">${shapes}</g><g>${labels}</g></svg>`;
 }
 
 async function svgJpeg(svg) {
@@ -348,6 +356,25 @@ async function svgJpeg(svg) {
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Le plan ne peut pas être converti en image.");
     context.fillStyle = "#fff"; context.fillRect(0, 0, canvas.width, canvas.height); context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return { data: canvas.toDataURL("image/jpeg", 0.9), width: canvas.width, height: canvas.height };
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function reportJpeg(model, svg) {
+  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+  try {
+    const image = new Image(); image.src = url; await image.decode();
+    if (!model.architectureBitmap) {
+      const background = new Image(); background.src = model.architectureImage.data; await background.decode();
+      model.architectureBitmap = background;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = model.architectureImage.width;
+    canvas.height = model.architectureImage.height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Les repères ne peuvent pas être convertis en image.");
+    context.drawImage(model.architectureBitmap, 0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
     return { data: canvas.toDataURL("image/jpeg", 0.9), width: canvas.width, height: canvas.height };
   } finally { URL.revokeObjectURL(url); }
 }
@@ -394,11 +421,11 @@ async function equipmentPdf(equipment, category, logo, onPage) {
   for (let index = 0; index < projectDefinition.floors.length; index += 1) {
     const floor = projectDefinition.floors[index];
     const model = await floorModel(floor);
-    const image = await svgJpeg(reportSvg(model, floor.id, equipment, category));
+    const image = await reportJpeg(model, reportSvg(model, floor.id, equipment, category));
     if (index) pdf.addPage("a4", "landscape");
-    pdf.setFillColor(39, 83, 47); pdf.rect(0, 0, 297, 19, "F");
+    pdf.setFillColor(255, 255, 255); pdf.rect(0, 0, 297, 19, "F");
     if (logo) pdf.addImage(logo, "PNG", 8, 2.5, 20, 14);
-    pdf.setTextColor(255, 255, 255); pdf.setFont("helvetica", "bold"); pdf.setFontSize(14);
+    pdf.setTextColor(31, 45, 35); pdf.setFont("helvetica", "bold"); pdf.setFontSize(14);
     pdf.text(`MUC - ${EQUIPMENT_LABELS[equipment]} - ${category === "standard" ? "Chambres Standard" : "Suites Junior"}`, 33, 11.5);
     pdf.setFontSize(10); pdf.text(floor.label, 288, 11.5, { align: "right" });
     const maxWidth = 218, maxHeight = 170;
@@ -431,7 +458,7 @@ async function exportEquipmentPdfs() {
       files[name] = await equipmentPdf(equipment, category, logo, () => { completed += 1; status.textContent = `Préparation des plans : ${completed}/${totalPages}`; });
     }
     const { zipSync } = await import("fflate");
-    const archive = zipSync(files, { level: 6 });
+    const archive = zipSync(files, { level: 0 });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([archive], { type: "application/zip" }));
     link.download = "MUC-Reperage-Equipements-PDF.zip"; link.click();
@@ -461,7 +488,9 @@ function initialize() {
     const target = event.target.closest("[data-room]");
     if (!target) return;
     selectedRoom = Number(target.dataset.room);
-    render(modelCache.get(selectedFloor));
+    document.querySelector("#equipmentPlan .equipment-room.selected")?.classList.remove("selected");
+    target.classList.add("selected");
+    renderDetail(selectedRoom);
   });
   document.querySelector("#exportEquipmentPdfs").addEventListener("click", () => { void exportEquipmentPdfs(); });
 }
