@@ -110,16 +110,15 @@ function buildModel(dxf) {
 function colorMapFor(equipment) {
   const tips = [...new Set(EQUIPMENT_RECORDS.filter((record) => record.equipment === equipment && equipmentIsDefined(record)).map((record) => record.tipExcel))].sort();
   const palette = [
-    "#FFD400", "#0057B8", "#7A1FA2", "#FF8C00", "#00B8D9", "#6B3E26", "#008F5A", "#2D2A8C",
-    "#C79200", "#0081A7", "#A55D00", "#3A86FF", "#8C5E35", "#00AEEF", "#B8860B", "#1D4E89",
-    "#C06C00", "#0077B6", "#7D4E24", "#4361EE", "#AA7C00", "#0096C7", "#4A4E69", "#F2C14E",
-    "#003566", "#9C6644", "#4895EF", "#00B4D8", "#946B2D", "#264653", "#6C8CD5", "#D69E2E",
-    "#004E89", "#B87333", "#1A759F", "#735751", "#2F6690", "#D4A017", "#3F37C9", "#007F9E",
+    "#1E88E5", "#00A651", "#FFD600", "#9C6ADE", "#7A4E2D", "#FF5FA2", "#FF8C00", "#0B2E59", "#F4F0E6", "#66C7F2",
+    "#0047AB", "#2E7D32", "#E6B800", "#6A1B9A", "#4E342E", "#D81B60", "#EF6C00", "#1565C0", "#D8CFC0", "#0288D1",
+    "#90CAF9", "#81C784", "#FFF176", "#CE93D8", "#A1887F", "#F48FB1", "#FFB74D", "#283593", "#FFF8E1", "#4FC3F7",
+    "#00796B", "#B8860B", "#8D6E63", "#AB47BC", "#F06292", "#F9A825", "#3949AB", "#BCAAA4", "#29B6F6", "#00695C",
   ];
   const overrides = new Map([
-    ["RO.ML02-R-116", "#0057B8"],
-    ["RO.ML05", "#FFD400"],
-    ["RO.ML05.1-2-R", "#7A1FA2"],
+    ["RO.ML02-R-116", "#1E88E5"],
+    ["RO.ML05", "#FFD600"],
+    ["RO.ML05.1-2-R", "#9C6ADE"],
   ]);
   const reserved = new Set(tips.map((tip) => overrides.get(tip)).filter(Boolean));
   const available = palette.filter((color) => !reserved.has(color));
@@ -187,11 +186,10 @@ function renderLegend(model, colors) {
     <section class="equipment-legend-group"><h3>${escapeText(product)}</h3>${[...tips.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([tip, count]) => `<button type="button" class="equipment-legend-item${selectedTip === tip ? " active" : ""}" data-equipment-tip="${escapeText(tip)}" aria-pressed="${selectedTip === tip}"><i style="--equipment-color:${colors.get(tip)}"></i><span>${escapeText(tip)}</span><strong>${count}</strong></button>`).join("")}</section>`).join("");
   const executiveCount = categoryRooms.filter((room) => roomCategory(room.number) === "executive").length;
   const unavailableCount = categoryRooms.filter((room) => roomCategory(room.number) !== "executive" && equipmentUnavailable(room.number)).length;
-  const reset = selectedTip ? `<button type="button" class="equipment-filter-reset" data-equipment-tip="">Afficher toutes les typologies</button>` : "";
   const undefinedGroup = undefinedCount ? `<section class="equipment-legend-group undefined"><h3>Données à compléter</h3><div class="equipment-legend-item static"><i style="--equipment-color:${UNDEFINED_COLOR}"></i><span>Non défini</span><strong>${undefinedCount}</strong></div></section>` : "";
   const executiveGroup = executiveCount ? `<section class="equipment-legend-group executive"><h3>Chambres Executive</h3><div class="equipment-legend-item static"><i class="unavailable-swatch"></i><span>Hors de cet équipement</span><strong>${executiveCount}</strong></div></section>` : "";
   const unavailableGroup = unavailableCount ? `<section class="equipment-legend-group executive"><h3>Équipement indisponible</h3><div class="equipment-legend-item static"><i class="unavailable-swatch"></i><span>Ne fait pas partie de cet équipement</span><strong>${unavailableCount}</strong></div></section>` : "";
-  document.querySelector("#equipmentLegend").innerHTML = `${reset}${groups}${undefinedGroup}${unavailableGroup}${executiveGroup}`;
+  document.querySelector("#equipmentLegend").innerHTML = `${groups}${undefinedGroup}${unavailableGroup}${executiveGroup}`;
 }
 
 function ensurePlanStructure(model) {
@@ -436,15 +434,10 @@ function initialize() {
     selectedCategory = event.target.value; selectedTip = null; selectedRoom = null;
     const model = modelCache.get(selectedFloor); if (model) render(model);
   });
-  document.querySelector("#equipmentShowAll").addEventListener("click", () => {
-    selectedCategory = "all"; selectedTip = null; selectedRoom = null;
-    document.querySelector("#equipmentCategorySelect").value = "all";
-    const model = modelCache.get(selectedFloor); if (model) render(model);
-  });
   document.querySelector("#equipmentLegend").addEventListener("click", (event) => {
     const button = event.target.closest("[data-equipment-tip]");
     if (!button) return;
-    selectedTip = button.dataset.equipmentTip || null; selectedRoom = null;
+    selectedTip = selectedTip === button.dataset.equipmentTip ? null : button.dataset.equipmentTip || null; selectedRoom = null;
     const model = modelCache.get(selectedFloor); if (model) render(model);
   });
   document.querySelector("#equipmentPlan").addEventListener("click", (event) => {
