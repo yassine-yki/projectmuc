@@ -889,6 +889,7 @@ body img.brand-mark { width:64px; height:54px; object-fit:contain; background:tr
 .equipment-toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:10px 14px; padding:10px 16px; border-bottom:1px solid var(--line); background:#fff; }
 .equipment-toolbar .field { width:140px; flex:none; }
 .equipment-toolbar .equipment-category-filter { width:190px; }
+.equipment-show-all { min-height:38px; white-space:nowrap; }
 .equipment-heading { flex:1; min-width:190px; margin-left:6px; }
 .equipment-heading h2 { margin:2px 0 0; font-size:18px; }
 .equipment-heading p { margin:3px 0 0; color:var(--green-dark); font-size:12px; font-weight:750; }
@@ -990,6 +991,7 @@ body img.brand-mark { width:64px; height:54px; object-fit:contain; background:tr
   .equipment-toolbar { align-items:center; flex-wrap:wrap; gap:8px; }
   .equipment-toolbar .field { width:calc(50% - 4px); }
   .equipment-toolbar .equipment-category-filter { width:100%; }
+  .equipment-show-all { width:100%; }
   .equipment-heading { width:100%; margin-left:0; }
   .equipment-legend-panel { overflow:visible; }
   .boh-plan-column { height:58svh; min-height:360px; border-right:0; border-bottom:1px solid var(--line); }

@@ -116,7 +116,30 @@ function colorMapFor(equipment) {
     "#003566", "#9C6644", "#4895EF", "#00B4D8", "#946B2D", "#264653", "#6C8CD5", "#D69E2E",
     "#004E89", "#B87333", "#1A759F", "#735751", "#2F6690", "#D4A017", "#3F37C9", "#007F9E",
   ];
-  return new Map(tips.map((tip, index) => [tip, palette[index % palette.length]]));
+  const overrides = new Map([
+    ["RO.ML02-R-116", "#0057B8"],
+    ["RO.ML05", "#FFD400"],
+    ["RO.ML05.1-2-R", "#7A1FA2"],
+  ]);
+  const reserved = new Set(tips.map((tip) => overrides.get(tip)).filter(Boolean));
+  const available = palette.filter((color) => !reserved.has(color));
+  const rgb = (color) => [1, 3, 5].map((index) => parseInt(color.slice(index, index + 2), 16));
+  const distance = (first, second) => {
+    const [r1, g1, b1] = rgb(first), [r2, g2, b2] = rgb(second);
+    return Math.sqrt((r1 - r2) ** 2 * 0.3 + (g1 - g2) ** 2 * 0.59 + (b1 - b2) ** 2 * 0.11);
+  };
+  const spread = [];
+  while (available.length) {
+    if (!spread.length) { spread.push(available.shift()); continue; }
+    let bestIndex = 0, bestDistance = -1;
+    available.forEach((candidate, index) => {
+      const nearest = Math.min(...[...spread, ...reserved].map((selected) => distance(candidate, selected)));
+      if (nearest > bestDistance) { bestDistance = nearest; bestIndex = index; }
+    });
+    spread.push(available.splice(bestIndex, 1)[0]);
+  }
+  let colorIndex = 0;
+  return new Map(tips.map((tip) => [tip, overrides.get(tip) || spread[colorIndex++ % spread.length]]));
 }
 
 function roomCategoryFor(floorId, roomNumber) {
@@ -411,6 +434,11 @@ function initialize() {
   document.querySelector("#equipmentKindSelect").addEventListener("change", (event) => { selectedEquipment = event.target.value; selectedTip = null; selectedRoom = null; const model = modelCache.get(selectedFloor); if (model) render(model); });
   document.querySelector("#equipmentCategorySelect").addEventListener("change", (event) => {
     selectedCategory = event.target.value; selectedTip = null; selectedRoom = null;
+    const model = modelCache.get(selectedFloor); if (model) render(model);
+  });
+  document.querySelector("#equipmentShowAll").addEventListener("click", () => {
+    selectedCategory = "all"; selectedTip = null; selectedRoom = null;
+    document.querySelector("#equipmentCategorySelect").value = "all";
     const model = modelCache.get(selectedFloor); if (model) render(model);
   });
   document.querySelector("#equipmentLegend").addEventListener("click", (event) => {
