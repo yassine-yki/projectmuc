@@ -1,11 +1,15 @@
 import { cleanDxfText, roomNumberFromText } from "./dxf-identification.js";
 import { EQUIPMENT_LABELS, EQUIPMENT_RECORDS, equipmentIsDefined, equipmentRecord } from "./equipment-data.js";
+import { ROOMS_BY_FLOOR } from "./project-data.js";
 
 const UNDEFINED_COLOR = "#d83a3a";
+const EXECUTIVE_COLOR = "#969d99";
 let projectDefinition = null;
 let selectedFloor = "r2";
 let selectedEquipment = "headboard";
 let selectedRoom = null;
+let selectedCategory = "all";
+let selectedTip = null;
 let initialized = false;
 const modelCache = new Map();
 
@@ -119,17 +123,28 @@ function colorMapFor(equipment) {
   }));
 }
 
+function roomCategory(roomNumber) {
+  return ROOMS_BY_FLOOR[selectedFloor]?.find((room) => room.number === roomNumber)?.roomType || "standard";
+}
+
+function roomVisible(roomNumber, record) {
+  if (selectedCategory !== "all" && roomCategory(roomNumber) !== selectedCategory) return false;
+  return !selectedTip || record?.tipExcel === selectedTip;
+}
+
 function renderDetail(room) {
   const container = document.querySelector("#equipmentRoomDetail");
   if (!room) { container.innerHTML = "<strong>Sélectionnez une chambre sur le plan</strong>"; return; }
   const record = equipmentRecord(selectedEquipment, room);
   const defined = equipmentIsDefined(record);
+  const category = roomCategory(room);
   container.innerHTML = `<span class="eyebrow">Chambre sélectionnée</span><h3>Chambre ${room}</h3>
-    <dl><div><dt>Type</dt><dd>${escapeText(record?.roomType || "Non renseigné")}</dd></div><div><dt>Typologie</dt><dd>${escapeText(record?.typology || "Non renseignée")}</dd></div><div><dt>PRODUCT CODE</dt><dd>${escapeText(record?.productCode || "Non défini")}</dd></div><div><dt>TIP EXCEL</dt><dd class="${defined ? "" : "undefined"}">${escapeText(record?.tipExcel || "Non défini")}</dd></div></dl>`;
+    <dl><div><dt>Type</dt><dd>${category === "executive" ? "Executive" : escapeText(record?.roomType || category)}</dd></div><div><dt>Typologie</dt><dd>${escapeText(record?.typology || "Non renseignée")}</dd></div><div><dt>PRODUCT CODE</dt><dd>${escapeText(record?.productCode || "Non défini")}</dd></div><div><dt>TIP EXCEL</dt><dd class="${defined || category === "executive" ? "" : "undefined"}">${category === "executive" ? "Non prévu dans les tableaux fournis" : escapeText(record?.tipExcel || "Non défini")}</dd></div></dl>`;
 }
 
 function renderLegend(model, colors) {
-  const visible = model.rooms.map((room) => equipmentRecord(selectedEquipment, room.number));
+  const categoryRooms = model.rooms.filter((room) => selectedCategory === "all" || roomCategory(room.number) === selectedCategory);
+  const visible = categoryRooms.filter((room) => roomCategory(room.number) !== "executive").map((room) => equipmentRecord(selectedEquipment, room.number));
   const grouped = new Map();
   let undefinedCount = 0;
   for (const record of visible) {
@@ -139,8 +154,12 @@ function renderLegend(model, colors) {
     tips.set(record.tipExcel, (tips.get(record.tipExcel) || 0) + 1);
   }
   const groups = [...grouped.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([product, tips]) => `
-    <section class="equipment-legend-group"><h3>${escapeText(product)}</h3>${[...tips.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([tip, count]) => `<div class="equipment-legend-item"><i style="--equipment-color:${colors.get(tip)}"></i><span>${escapeText(tip)}</span><strong>${count}</strong></div>`).join("")}</section>`).join("");
-  document.querySelector("#equipmentLegend").innerHTML = `${groups}<section class="equipment-legend-group undefined"><h3>Données à compléter</h3><div class="equipment-legend-item"><i style="--equipment-color:${UNDEFINED_COLOR}"></i><span>Non défini</span><strong>${undefinedCount}</strong></div></section>`;
+    <section class="equipment-legend-group"><h3>${escapeText(product)}</h3>${[...tips.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([tip, count]) => `<button type="button" class="equipment-legend-item${selectedTip === tip ? " active" : ""}" data-equipment-tip="${escapeText(tip)}" aria-pressed="${selectedTip === tip}"><i style="--equipment-color:${colors.get(tip)}"></i><span>${escapeText(tip)}</span><strong>${count}</strong></button>`).join("")}</section>`).join("");
+  const executiveCount = categoryRooms.filter((room) => roomCategory(room.number) === "executive").length;
+  const reset = selectedTip ? `<button type="button" class="equipment-filter-reset" data-equipment-tip="">Afficher toutes les typologies</button>` : "";
+  const undefinedGroup = undefinedCount ? `<section class="equipment-legend-group undefined"><h3>Données à compléter</h3><div class="equipment-legend-item static"><i style="--equipment-color:${UNDEFINED_COLOR}"></i><span>Non défini</span><strong>${undefinedCount}</strong></div></section>` : "";
+  const executiveGroup = executiveCount ? `<section class="equipment-legend-group executive"><h3>Chambres Executive</h3><div class="equipment-legend-item static"><i style="--equipment-color:${EXECUTIVE_COLOR}"></i><span>Executive</span><strong>${executiveCount}</strong></div></section>` : "";
+  document.querySelector("#equipmentLegend").innerHTML = `${reset}${groups}${undefinedGroup}${executiveGroup}`;
 }
 
 function render(model) {
@@ -153,18 +172,22 @@ function render(model) {
   const roomShapes = model.rooms.map((room) => {
     const record = equipmentRecord(selectedEquipment, room.number);
     const defined = equipmentIsDefined(record);
-    const color = defined ? colors.get(record.tipExcel) : UNDEFINED_COLOR;
+    const category = roomCategory(room.number);
+    const color = category === "executive" ? EXECUTIVE_COLOR : defined ? colors.get(record.tipExcel) : UNDEFINED_COLOR;
     const selected = room.number === selectedRoom ? " selected" : "";
-    if (room.polygon) return `<path class="equipment-room${selected}" data-room="${room.number}" style="--equipment-color:${color}" d="${pathFromPoints(room.polygon, true)}"><title>Chambre ${room.number} · ${escapeText(record?.tipExcel || "Non défini")}</title></path>`;
-    return `<circle class="equipment-room equipment-room-marker${selected}" data-room="${room.number}" style="--equipment-color:${color}" cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}"><title>Chambre ${room.number} · ${escapeText(record?.tipExcel || "Non défini")}</title></circle>`;
+    const filtered = roomVisible(room.number, record) ? "" : " filtered-out";
+    const label = category === "executive" ? "Executive" : record?.tipExcel || "Non défini";
+    if (room.polygon) return `<path class="equipment-room${selected}${filtered}" data-room="${room.number}" style="--equipment-color:${color}" d="${pathFromPoints(room.polygon, true)}"><title>Chambre ${room.number} · ${escapeText(label)}</title></path>`;
+    return `<circle class="equipment-room equipment-room-marker${selected}${filtered}" data-room="${room.number}" style="--equipment-color:${color}" cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}"><title>Chambre ${room.number} · ${escapeText(label)}</title></circle>`;
   }).join("");
-  const labels = model.rooms.map((room) => `<text class="equipment-room-label" x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle">${room.number}</text>`).join("");
+  const labels = model.rooms.map((room) => `<text class="equipment-room-label${roomVisible(room.number, equipmentRecord(selectedEquipment, room.number)) ? "" : " filtered-out"}" x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle">${room.number}</text>`).join("");
   svg.innerHTML = `<g transform="scale(1 -1)">${roomShapes}</g><g class="equipment-architecture" transform="scale(1 -1)">${model.architecture}</g><g>${labels}</g>`;
-  const undefinedCount = model.rooms.filter((room) => !equipmentIsDefined(equipmentRecord(selectedEquipment, room.number))).length;
-  const visibleTypeCount = new Set(model.rooms.map((room) => equipmentRecord(selectedEquipment, room.number)).filter(equipmentIsDefined).map((record) => record.tipExcel)).size;
+  const scopedRooms = model.rooms.filter((room) => roomVisible(room.number, equipmentRecord(selectedEquipment, room.number)));
+  const undefinedCount = scopedRooms.filter((room) => roomCategory(room.number) !== "executive" && !equipmentIsDefined(equipmentRecord(selectedEquipment, room.number))).length;
+  const visibleTypeCount = new Set(scopedRooms.map((room) => equipmentRecord(selectedEquipment, room.number)).filter(equipmentIsDefined).map((record) => record.tipExcel)).size;
   const floor = projectDefinition.floors.find((item) => item.id === selectedFloor);
   document.querySelector("#equipmentPlanTitle").textContent = `${floor?.label || selectedFloor} · ${EQUIPMENT_LABELS[selectedEquipment]}`;
-  document.querySelector("#equipmentSummary").textContent = `${model.rooms.length} chambres · ${visibleTypeCount} TIP EXCEL · ${undefinedCount} non définie${undefinedCount > 1 ? "s" : ""}`;
+  document.querySelector("#equipmentSummary").textContent = `${scopedRooms.length} chambres affichées · ${visibleTypeCount} TIP EXCEL · ${undefinedCount} non définie${undefinedCount > 1 ? "s" : ""}`;
   document.querySelector("#equipmentPlanEmpty").hidden = true;
   renderLegend(model, colors);
   renderDetail(selectedRoom);
@@ -185,7 +208,7 @@ async function loadFloor() {
       if (!Parser) throw new Error("Le lecteur DXF n’est pas disponible.");
       modelCache.set(floor.id, buildModel(new Parser().parseSync(source)));
     }
-    selectedRoom = null;
+    selectedRoom = null; selectedTip = null;
     render(modelCache.get(floor.id));
   } catch (error) {
     empty.textContent = `Impossible d’ouvrir le plan : ${error.message}`;
@@ -197,7 +220,20 @@ function initialize() {
   if (initialized) return;
   initialized = true;
   document.querySelector("#equipmentFloorSelect").addEventListener("change", (event) => { selectedFloor = event.target.value; void loadFloor(); });
-  document.querySelector("#equipmentKindSelect").addEventListener("change", (event) => { selectedEquipment = event.target.value; selectedRoom = null; const model = modelCache.get(selectedFloor); if (model) render(model); });
+  document.querySelector("#equipmentKindSelect").addEventListener("change", (event) => { selectedEquipment = event.target.value; selectedTip = null; selectedRoom = null; const model = modelCache.get(selectedFloor); if (model) render(model); });
+  document.querySelector("#equipmentCategoryTabs").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-equipment-category]");
+    if (!button) return;
+    selectedCategory = button.dataset.equipmentCategory; selectedTip = null; selectedRoom = null;
+    document.querySelectorAll("[data-equipment-category]").forEach((item) => item.classList.toggle("active", item === button));
+    const model = modelCache.get(selectedFloor); if (model) render(model);
+  });
+  document.querySelector("#equipmentLegend").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-equipment-tip]");
+    if (!button) return;
+    selectedTip = button.dataset.equipmentTip || null; selectedRoom = null;
+    const model = modelCache.get(selectedFloor); if (model) render(model);
+  });
   document.querySelector("#equipmentPlan").addEventListener("click", (event) => {
     const target = event.target.closest("[data-room]");
     if (!target) return;

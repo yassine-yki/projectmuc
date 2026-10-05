@@ -888,6 +888,9 @@ body img.brand-mark { width:64px; height:54px; object-fit:contain; background:tr
 .equipment-plan-column { display:flex; flex-direction:column; min-width:0; min-height:0; border-right:1px solid var(--line); }
 .equipment-toolbar { display:flex; align-items:end; gap:14px; padding:10px 16px; border-bottom:1px solid var(--line); background:#fff; }
 .equipment-toolbar .field { width:140px; flex:none; }
+.equipment-category-filter { display:grid; gap:5px; }
+.equipment-category-filter .segmented { flex-wrap:nowrap; }
+.equipment-category-filter button { min-height:36px; padding:6px 9px; }
 .equipment-heading { min-width:0; margin-left:6px; }
 .equipment-heading h2 { margin:2px 0 0; font-size:18px; }
 .equipment-heading p { margin:3px 0 0; color:var(--green-dark); font-size:12px; font-weight:750; }
@@ -897,6 +900,7 @@ body img.brand-mark { width:64px; height:54px; object-fit:contain; background:tr
 .equipment-architecture path { fill:none; stroke:#808984; stroke-width:.48; vector-effect:non-scaling-stroke; opacity:.68; }
 .equipment-room { fill:var(--equipment-color); fill-opacity:.58; stroke:color-mix(in srgb,var(--equipment-color),#14271e 34%); stroke-width:1.15; vector-effect:non-scaling-stroke; cursor:pointer; transition:fill-opacity .15s; }
 .equipment-room:hover,.equipment-room.selected { fill-opacity:.82; stroke:#162d21; stroke-width:2.4; }
+.equipment-room.filtered-out,.equipment-room-label.filtered-out { opacity:.06; pointer-events:none; }
 .equipment-room-label { fill:#14231c; font-family:Arial,sans-serif; font-weight:800; paint-order:stroke; stroke:#fff; stroke-width:.12; pointer-events:none; }
 .equipment-legend-panel { min-width:0; overflow:auto; padding:16px; background:var(--surface-soft); }
 .equipment-room-detail { margin:0 0 12px; padding:12px; border:1px solid var(--line); border-radius:9px; background:#fff; }
@@ -911,10 +915,14 @@ body img.brand-mark { width:64px; height:54px; object-fit:contain; background:tr
 .equipment-legend-group h3 { margin:0; padding:8px 10px; border-bottom:1px solid var(--line); background:#f3f5f1; font-size:13px; }
 .equipment-legend-group.undefined { border-color:#e8b2ae; }
 .equipment-legend-group.undefined h3 { background:#fff0ef; }
-.equipment-legend-item { display:grid; grid-template-columns:15px minmax(0,1fr) auto; align-items:center; gap:8px; padding:7px 10px; border-top:1px solid #edf0ec; font-size:12px; }
+.equipment-legend-item { display:grid; width:100%; grid-template-columns:15px minmax(0,1fr) auto; align-items:center; gap:8px; padding:7px 10px; border:0; border-top:1px solid #edf0ec; border-radius:0; background:#fff; color:var(--ink); text-align:left; font-size:12px; }
+.equipment-legend-item:not(.static) { cursor:pointer; }
+.equipment-legend-item:not(.static):hover,.equipment-legend-item.active { background:#e8efe5; box-shadow:inset 3px 0 var(--green); }
 .equipment-legend-item:first-of-type { border-top:0; }
 .equipment-legend-item i { width:15px; height:15px; border:1px solid #526058; border-radius:4px; background:var(--equipment-color); }
 .equipment-legend-item strong { color:var(--muted); }
+.equipment-legend-group.executive h3 { background:#ecefed; }
+.equipment-filter-reset { width:100%; min-height:38px; border:1px solid var(--green); border-radius:8px; background:#fff; color:var(--green-dark); font-weight:800; }
 
 .boh-shell { display:grid; grid-template-columns:minmax(0,1fr) 390px; min-height:0; height:calc(100vh - 83px); background:var(--surface-soft); }
 .boh-plan-column { position:relative; display:flex; flex-direction:column; min-width:0; min-height:0; border-right:1px solid var(--line); }
@@ -978,6 +986,7 @@ body img.brand-mark { width:64px; height:54px; object-fit:contain; background:tr
   .equipment-plan-column { height:62svh; min-height:430px; border-right:0; border-bottom:1px solid var(--line); }
   .equipment-toolbar { align-items:center; flex-wrap:wrap; gap:8px; }
   .equipment-toolbar .field { width:calc(50% - 4px); }
+  .equipment-category-filter { width:100%; overflow-x:auto; }
   .equipment-heading { width:100%; margin-left:0; }
   .equipment-legend-panel { overflow:visible; }
   .boh-plan-column { height:58svh; min-height:360px; border-right:0; border-bottom:1px solid var(--line); }
