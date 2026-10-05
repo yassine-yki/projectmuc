@@ -162,27 +162,46 @@ function renderLegend(model, colors) {
   document.querySelector("#equipmentLegend").innerHTML = `${reset}${groups}${undefinedGroup}${executiveGroup}`;
 }
 
-function render(model) {
+function ensurePlanStructure(model) {
   const svg = document.querySelector("#equipmentPlan");
-  const colors = colorMapFor(selectedEquipment);
+  if (svg.dataset.floor === selectedFloor) return svg;
   const width = model.bounds.maxX - model.bounds.minX;
   const height = model.bounds.maxY - model.bounds.minY;
   const labelSize = Math.max(0.34, Math.min(0.58, height * 0.012));
   svg.setAttribute("viewBox", `${numberValue(model.bounds.minX)} ${numberValue(-model.bounds.maxY)} ${numberValue(width)} ${numberValue(height)}`);
   const roomShapes = model.rooms.map((room) => {
-    const record = equipmentRecord(selectedEquipment, room.number);
-    const defined = equipmentIsDefined(record);
-    const category = roomCategory(room.number);
-    const color = category === "executive" ? EXECUTIVE_COLOR : defined ? colors.get(record.tipExcel) : UNDEFINED_COLOR;
-    const selected = room.number === selectedRoom ? " selected" : "";
-    const undefinedClass = category !== "executive" && !defined ? " undefined" : "";
-    const filtered = roomVisible(room.number, record) ? "" : " filtered-out";
-    const label = category === "executive" ? "Executive" : record?.tipExcel || "Non défini";
-    if (room.polygon) return `<path class="equipment-room${undefinedClass}${selected}${filtered}" data-room="${room.number}" style="--equipment-color:${color}" d="${pathFromPoints(room.polygon, true)}"><title>Chambre ${room.number} · ${escapeText(label)}</title></path>`;
-    return `<circle class="equipment-room equipment-room-marker${undefinedClass}${selected}${filtered}" data-room="${room.number}" style="--equipment-color:${color}" cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}"><title>Chambre ${room.number} · ${escapeText(label)}</title></circle>`;
+    if (room.polygon) return `<path class="equipment-room" data-room="${room.number}" d="${pathFromPoints(room.polygon, true)}"><title></title></path>`;
+    return `<circle class="equipment-room equipment-room-marker" data-room="${room.number}" cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}"><title></title></circle>`;
   }).join("");
-  const labels = model.rooms.map((room) => `<text class="equipment-room-label${roomVisible(room.number, equipmentRecord(selectedEquipment, room.number)) ? "" : " filtered-out"}" x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle">${room.number}</text>`).join("");
+  const labels = model.rooms.map((room) => `<text class="equipment-room-label" data-room-label="${room.number}" x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle">${room.number}</text>`).join("");
   svg.innerHTML = `<g transform="scale(1 -1)">${roomShapes}</g><g class="equipment-architecture" transform="scale(1 -1)">${model.architecture}</g><g>${labels}</g>`;
+  svg.dataset.floor = selectedFloor;
+  return svg;
+}
+
+function render(model) {
+  const svg = ensurePlanStructure(model);
+  const colors = colorMapFor(selectedEquipment);
+  const roomsByNumber = new Map(model.rooms.map((room) => [room.number, room]));
+  svg.querySelectorAll(".equipment-room").forEach((element) => {
+    const roomNumber = Number(element.dataset.room);
+    if (!roomsByNumber.has(roomNumber)) return;
+    const record = equipmentRecord(selectedEquipment, roomNumber);
+    const defined = equipmentIsDefined(record);
+    const category = roomCategory(roomNumber);
+    const color = category === "executive" ? EXECUTIVE_COLOR : defined ? colors.get(record.tipExcel) : UNDEFINED_COLOR;
+    const label = category === "executive" ? "Executive" : record?.tipExcel || "Non défini";
+    element.style.setProperty("--equipment-color", color);
+    element.classList.toggle("undefined", category !== "executive" && !defined);
+    element.classList.toggle("selected", roomNumber === selectedRoom);
+    element.classList.toggle("filtered-out", !roomVisible(roomNumber, record));
+    const title = element.querySelector("title");
+    if (title) title.textContent = `Chambre ${roomNumber} · ${label}`;
+  });
+  svg.querySelectorAll("[data-room-label]").forEach((label) => {
+    const roomNumber = Number(label.dataset.roomLabel);
+    label.classList.toggle("filtered-out", !roomVisible(roomNumber, equipmentRecord(selectedEquipment, roomNumber)));
+  });
   const scopedRooms = model.rooms.filter((room) => roomVisible(room.number, equipmentRecord(selectedEquipment, room.number)));
   const undefinedCount = scopedRooms.filter((room) => roomCategory(room.number) !== "executive" && !equipmentIsDefined(equipmentRecord(selectedEquipment, room.number))).length;
   const visibleTypeCount = new Set(scopedRooms.map((room) => equipmentRecord(selectedEquipment, room.number)).filter(equipmentIsDefined).map((record) => record.tipExcel)).size;
@@ -213,7 +232,8 @@ async function loadFloor() {
     render(modelCache.get(floor.id));
   } catch (error) {
     empty.textContent = `Impossible d’ouvrir le plan : ${error.message}`;
-    document.querySelector("#equipmentPlan").innerHTML = "";
+    const svg = document.querySelector("#equipmentPlan");
+    svg.innerHTML = ""; delete svg.dataset.floor;
   }
 }
 

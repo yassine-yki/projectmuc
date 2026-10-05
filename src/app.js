@@ -10,7 +10,6 @@ import { editable } from "./cloud/types.js";
 import { openProjectPhotos, openTaskPhotos } from "./task-photos.js";
 import { openBoh } from "./boh.js";
 import { openDxfWorkshop } from "./dxf-workshop.js";
-import { openEquipmentMap } from "./equipment-map.js";
 import { findPinnedTask } from "./task-pin.js";
 
 
@@ -1892,7 +1891,7 @@ async function activateTrackingMode(mode) {
   } else if(mode==="equipment") {
     elements.projectSubtitle.textContent=activeProjectDefinition.name+" — Repérage des équipements";
     showAppLoading("Chargement du repérage des équipements…");
-    try{await openEquipmentMap(activeProjectDefinition);}finally{hideAppLoading();}
+    try{const {openEquipmentMap}=await import("./equipment-map.js");await openEquipmentMap(activeProjectDefinition);}finally{hideAppLoading();}
   } else if(mode==="boh") {
     elements.projectSubtitle.textContent=activeProjectDefinition.name+" — BOH Carrelage";
     showAppLoading("Chargement du suivi BOH…");
