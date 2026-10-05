@@ -3,7 +3,7 @@ import { EQUIPMENT_LABELS, EQUIPMENT_RECORDS, equipmentIsDefined, equipmentRecor
 import { ROOMS_BY_FLOOR } from "./project-data.js";
 
 const UNDEFINED_COLOR = "#ff003c";
-const EXECUTIVE_COLOR = "#969d99";
+const EXECUTIVE_COLOR = "#555c58";
 let projectDefinition = null;
 let selectedFloor = "r2";
 let selectedEquipment = "headboard";
@@ -166,8 +166,8 @@ function renderLegend(model, colors) {
   const unavailableCount = categoryRooms.filter((room) => roomCategory(room.number) !== "executive" && equipmentUnavailable(room.number)).length;
   const reset = selectedTip ? `<button type="button" class="equipment-filter-reset" data-equipment-tip="">Afficher toutes les typologies</button>` : "";
   const undefinedGroup = undefinedCount ? `<section class="equipment-legend-group undefined"><h3>Données à compléter</h3><div class="equipment-legend-item static"><i style="--equipment-color:${UNDEFINED_COLOR}"></i><span>Non défini</span><strong>${undefinedCount}</strong></div></section>` : "";
-  const executiveGroup = executiveCount ? `<section class="equipment-legend-group executive"><h3>Chambres Executive</h3><div class="equipment-legend-item static"><i style="--equipment-color:${EXECUTIVE_COLOR}"></i><span>Executive</span><strong>${executiveCount}</strong></div></section>` : "";
-  const unavailableGroup = unavailableCount ? `<section class="equipment-legend-group executive"><h3>Équipement indisponible</h3><div class="equipment-legend-item static"><i style="--equipment-color:${EXECUTIVE_COLOR}"></i><span>Indisponible pour ce type de chambre</span><strong>${unavailableCount}</strong></div></section>` : "";
+  const executiveGroup = executiveCount ? `<section class="equipment-legend-group executive"><h3>Chambres Executive</h3><div class="equipment-legend-item static"><i class="unavailable-swatch"></i><span>Hors de cet équipement</span><strong>${executiveCount}</strong></div></section>` : "";
+  const unavailableGroup = unavailableCount ? `<section class="equipment-legend-group executive"><h3>Équipement indisponible</h3><div class="equipment-legend-item static"><i class="unavailable-swatch"></i><span>Ne fait pas partie de cet équipement</span><strong>${unavailableCount}</strong></div></section>` : "";
   document.querySelector("#equipmentLegend").innerHTML = `${reset}${groups}${undefinedGroup}${unavailableGroup}${executiveGroup}`;
 }
 
@@ -183,7 +183,7 @@ function ensurePlanStructure(model) {
     return `<circle class="equipment-room equipment-room-marker" data-room="${room.number}" cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}"><title></title></circle>`;
   }).join("");
   const labels = model.rooms.map((room) => `<text class="equipment-room-label" data-room-label="${room.number}" x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle">${room.number}</text>`).join("");
-  svg.innerHTML = `<g transform="scale(1 -1)">${roomShapes}</g><g class="equipment-architecture" transform="scale(1 -1)">${model.architecture}</g><g>${labels}</g>`;
+  svg.innerHTML = `<defs><pattern id="equipment-unavailable-pattern" width="0.65" height="0.65" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.65" height="0.65" fill="#555c58"></rect><rect width="0.2" height="0.65" fill="#aeb4b1"></rect></pattern></defs><g transform="scale(1 -1)">${roomShapes}</g><g class="equipment-architecture" transform="scale(1 -1)">${model.architecture}</g><g>${labels}</g>`;
   svg.dataset.floor = selectedFloor;
   return svg;
 }
