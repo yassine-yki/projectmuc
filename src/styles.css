@@ -889,7 +889,6 @@ body img.brand-mark { width:64px; height:54px; object-fit:contain; background:tr
 .equipment-toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:10px 14px; padding:10px 16px; border-bottom:1px solid var(--line); background:#fff; }
 .equipment-toolbar .field { width:140px; flex:none; }
 .equipment-toolbar .equipment-category-filter { width:190px; }
-.equipment-toolbar .equipment-tip-filter { width:230px; }
 .equipment-heading { flex:1; min-width:190px; margin-left:6px; }
 .equipment-heading h2 { margin:2px 0 0; font-size:18px; }
 .equipment-heading p { margin:3px 0 0; color:var(--green-dark); font-size:12px; font-weight:750; }
@@ -926,7 +925,7 @@ body img.brand-mark { width:64px; height:54px; object-fit:contain; background:tr
 .equipment-legend-item { display:grid; width:100%; grid-template-columns:15px minmax(0,1fr) auto; align-items:center; gap:8px; padding:7px 10px; border:0; border-top:1px solid #edf0ec; border-radius:0; background:#fff; color:var(--ink); text-align:left; font-size:12px; }
 .equipment-legend-item:not(.static) { cursor:pointer; }
 .equipment-legend-item:not(.static):hover { background:#e8efe5; box-shadow:inset 3px 0 var(--green); }
-.equipment-legend-item.active { background:#fff3a0; box-shadow:inset 4px 0 #171717; }
+.equipment-legend-item.active { background:#eef0ed; box-shadow:inset 4px 0 #171717; }
 .equipment-legend-item:first-of-type { border-top:0; }
 .equipment-legend-item i { width:15px; height:15px; border:1px solid #526058; border-radius:4px; background:var(--equipment-color); }
 .equipment-legend-item i.unavailable-swatch { border-color:#292f2c; background:repeating-linear-gradient(135deg,#555c58 0 4px,#aeb4b1 4px 7px); }
@@ -997,7 +996,6 @@ body img.brand-mark { width:64px; height:54px; object-fit:contain; background:tr
   .equipment-toolbar { align-items:center; flex-wrap:wrap; gap:8px; }
   .equipment-toolbar .field { width:calc(50% - 4px); }
   .equipment-toolbar .equipment-category-filter { width:100%; }
-  .equipment-toolbar .equipment-tip-filter { width:100%; }
   .equipment-heading { width:100%; margin-left:0; }
   .equipment-legend-panel { overflow:visible; }
   .boh-plan-column { height:58svh; min-height:360px; border-right:0; border-bottom:1px solid var(--line); }

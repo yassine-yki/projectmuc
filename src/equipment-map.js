@@ -184,22 +184,6 @@ function renderLegend(model, visuals) {
   document.querySelector("#equipmentLegend").innerHTML = `${groups}${undefinedGroup}${unavailableGroup}${executiveGroup}`;
 }
 
-function renderTipSelect(model, visuals) {
-  const select = document.querySelector("#equipmentTipSelect");
-  const present = new Set(model.rooms
-    .filter((room) => selectedCategory === "all" || roomCategory(room.number) === selectedCategory)
-    .filter((room) => !equipmentUnavailable(room.number))
-    .map((room) => equipmentRecord(selectedEquipment, room.number))
-    .filter(equipmentIsDefined)
-    .map((record) => record.tipExcel));
-  if (selectedTip && !present.has(selectedTip)) selectedTip = null;
-  select.innerHTML = `<option value="">Tous les types</option>${[...present].sort().map((tip) => {
-    const code = String(visuals.get(tip).code).padStart(2, "0");
-    return `<option value="${escapeText(tip)}">${code} · ${escapeText(tip)}</option>`;
-  }).join("")}`;
-  select.value = selectedTip || "";
-}
-
 function ensurePlanStructure(model) {
   const svg = document.querySelector("#equipmentPlan");
   if (svg.dataset.floor === selectedFloor) return svg;
@@ -220,7 +204,6 @@ function ensurePlanStructure(model) {
 function render(model) {
   const svg = ensurePlanStructure(model);
   const visuals = visualMapFor(selectedEquipment);
-  renderTipSelect(model, visuals);
   svg.querySelector("#equipment-defs").innerHTML = `<pattern id="equipment-unavailable-pattern" width="0.65" height="0.65" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.65" height="0.65" fill="#555c58"></rect><rect width="0.2" height="0.65" fill="#aeb4b1"></rect></pattern>${patternDefinitions(visuals, "equipment-tip")}`;
   const roomsByNumber = new Map(model.rooms.map((room) => [room.number, room]));
   svg.querySelectorAll(".equipment-room").forEach((element) => {
@@ -235,7 +218,7 @@ function render(model) {
     const color = unavailable ? EXECUTIVE_COLOR : defined ? visual.color : UNDEFINED_COLOR;
     const label = category === "executive" ? "Executive" : unavailable ? "Indisponible" : record?.tipExcel || "Non défini";
     element.style.setProperty("--equipment-color", color);
-    element.style.fill = focused ? "#ffea00" : selectedTip && !unavailable ? "#d6ddda" : unavailable ? "" : defined ? visualFill(visual, "equipment-tip") : UNDEFINED_COLOR;
+    element.style.fill = selectedTip && !focused && !unavailable ? "#d6ddda" : unavailable ? "" : defined ? visualFill(visual, "equipment-tip") : UNDEFINED_COLOR;
     element.classList.toggle("undefined", !unavailable && !defined);
     element.classList.toggle("unavailable", unavailable);
     element.classList.toggle("focused", focused);
@@ -342,7 +325,16 @@ function reportSvg(model, floorId, equipment, category) {
     if (room.polygon) return `<path d="${pathFromPoints(room.polygon, true)}" fill="${fill}" fill-opacity="${applicable ? 0.82 : 1}" stroke="${stroke}" stroke-width="0.13"/>`;
     return `<circle cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}" fill="${fill}" stroke="${stroke}" stroke-width="0.13"/>`;
   }).join("");
-  const labels = model.rooms.map((room) => { const record=equipmentRecord(equipment,room.number),visual=equipmentIsDefined(record)?visuals.get(record.tipExcel):null,applicable=roomCategoryFor(floorId,room.number)===category,code=applicable?(visual?String(visual.code).padStart(2,"0"):"ND"):"—";return `<text x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle" font-family="Arial" font-weight="700" fill="#17231d" stroke="#ffffff" stroke-width="0.08" paint-order="stroke">${room.number}</text><text x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y+labelSize*1.05)}" font-size="${numberValue(labelSize*.68)}" text-anchor="middle" font-family="Arial" font-weight="700" fill="#17231d" stroke="#ffffff" stroke-width="0.06" paint-order="stroke">${code}</text>`; }).join("");
+  const labels = model.rooms.map((room) => {
+    const record = equipmentRecord(equipment, room.number);
+    const visual = equipmentIsDefined(record) ? visuals.get(record.tipExcel) : null;
+    const applicable = roomCategoryFor(floorId, room.number) === category;
+    const code = applicable ? (visual ? String(visual.code).padStart(2, "0") : "ND") : null;
+    const x = numberValue(room.labelPoint.x);
+    const top = numberValue(-room.labelPoint.y - (code ? 1.04 : 0.68));
+    const height = code ? "1.88" : "1.22";
+    return `<g><rect x="${numberValue(room.labelPoint.x - 1.22)}" y="${top}" width="2.44" height="${height}" rx="0.16" fill="#fff" fill-opacity="0.96" stroke="#18231d" stroke-width="0.09"/><text x="${x}" y="${numberValue(-room.labelPoint.y - (code ? 0.12 : -0.18))}" font-size="1.02" text-anchor="middle" font-family="Arial" font-weight="700" fill="#111">${room.number}</text>${code ? `<text x="${x}" y="${numberValue(-room.labelPoint.y + 0.58)}" font-size="0.64" text-anchor="middle" font-family="Arial" font-weight="700" fill="#111">${code}</text>` : ""}</g>`;
+  }).join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="${Math.round(1600 * height / width)}" viewBox="${numberValue(model.bounds.minX)} ${numberValue(-model.bounds.maxY)} ${numberValue(width)} ${numberValue(height)}"><rect width="100%" height="100%" fill="#fff"/><defs><pattern id="report-unavailable" width="0.65" height="0.65" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.65" height="0.65" fill="#555c58"/><rect width="0.2" height="0.65" fill="#aeb4b1"/></pattern>${patternDefinitions(visuals,"report-tip")}</defs><g transform="scale(1 -1)">${shapes}</g><g transform="scale(1 -1)" fill="none" stroke="#7c8580" stroke-width="0.045" opacity="0.72">${model.architecture}</g><g>${labels}</g></svg>`;
 }
 
@@ -457,10 +449,6 @@ function initialize() {
   document.querySelector("#equipmentKindSelect").addEventListener("change", (event) => { selectedEquipment = event.target.value; selectedTip = null; selectedRoom = null; const model = modelCache.get(selectedFloor); if (model) render(model); });
   document.querySelector("#equipmentCategorySelect").addEventListener("change", (event) => {
     selectedCategory = event.target.value; selectedTip = null; selectedRoom = null;
-    const model = modelCache.get(selectedFloor); if (model) render(model);
-  });
-  document.querySelector("#equipmentTipSelect").addEventListener("change", (event) => {
-    selectedTip = event.target.value || null; selectedRoom = null;
     const model = modelCache.get(selectedFloor); if (model) render(model);
   });
   document.querySelector("#equipmentLegend").addEventListener("click", (event) => {
