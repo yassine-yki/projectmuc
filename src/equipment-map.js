@@ -184,6 +184,22 @@ function renderLegend(model, visuals) {
   document.querySelector("#equipmentLegend").innerHTML = `${groups}${undefinedGroup}${unavailableGroup}${executiveGroup}`;
 }
 
+function renderTipSelect(model, visuals) {
+  const select = document.querySelector("#equipmentTipSelect");
+  const present = new Set(model.rooms
+    .filter((room) => selectedCategory === "all" || roomCategory(room.number) === selectedCategory)
+    .filter((room) => !equipmentUnavailable(room.number))
+    .map((room) => equipmentRecord(selectedEquipment, room.number))
+    .filter(equipmentIsDefined)
+    .map((record) => record.tipExcel));
+  if (selectedTip && !present.has(selectedTip)) selectedTip = null;
+  select.innerHTML = `<option value="">Tous les types</option>${[...present].sort().map((tip) => {
+    const code = String(visuals.get(tip).code).padStart(2, "0");
+    return `<option value="${escapeText(tip)}">${code} · ${escapeText(tip)}</option>`;
+  }).join("")}`;
+  select.value = selectedTip || "";
+}
+
 function ensurePlanStructure(model) {
   const svg = document.querySelector("#equipmentPlan");
   if (svg.dataset.floor === selectedFloor) return svg;
@@ -204,6 +220,7 @@ function ensurePlanStructure(model) {
 function render(model) {
   const svg = ensurePlanStructure(model);
   const visuals = visualMapFor(selectedEquipment);
+  renderTipSelect(model, visuals);
   svg.querySelector("#equipment-defs").innerHTML = `<pattern id="equipment-unavailable-pattern" width="0.65" height="0.65" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.65" height="0.65" fill="#555c58"></rect><rect width="0.2" height="0.65" fill="#aeb4b1"></rect></pattern>${patternDefinitions(visuals, "equipment-tip")}`;
   const roomsByNumber = new Map(model.rooms.map((room) => [room.number, room]));
   svg.querySelectorAll(".equipment-room").forEach((element) => {
@@ -214,12 +231,15 @@ function render(model) {
     const category = roomCategory(roomNumber);
     const unavailable = equipmentUnavailable(roomNumber);
     const visual = defined ? visuals.get(record.tipExcel) : null;
+    const focused = Boolean(selectedTip && roomVisible(roomNumber, record));
     const color = unavailable ? EXECUTIVE_COLOR : defined ? visual.color : UNDEFINED_COLOR;
     const label = category === "executive" ? "Executive" : unavailable ? "Indisponible" : record?.tipExcel || "Non défini";
     element.style.setProperty("--equipment-color", color);
-    element.style.fill = unavailable ? "" : defined ? visualFill(visual, "equipment-tip") : UNDEFINED_COLOR;
+    element.style.fill = focused ? "#ffea00" : selectedTip && !unavailable ? "#d6ddda" : unavailable ? "" : defined ? visualFill(visual, "equipment-tip") : UNDEFINED_COLOR;
     element.classList.toggle("undefined", !unavailable && !defined);
     element.classList.toggle("unavailable", unavailable);
+    element.classList.toggle("focused", focused);
+    element.classList.toggle("comparison-muted", Boolean(selectedTip && !focused));
     element.classList.toggle("selected", roomNumber === selectedRoom);
     element.classList.toggle("filtered-out", !roomVisible(roomNumber, record));
     const title = element.querySelector("title");
@@ -240,7 +260,8 @@ function render(model) {
   const visibleTypeCount = new Set(scopedRooms.map((room) => equipmentRecord(selectedEquipment, room.number)).filter(equipmentIsDefined).map((record) => record.tipExcel)).size;
   const floor = projectDefinition.floors.find((item) => item.id === selectedFloor);
   document.querySelector("#equipmentPlanTitle").textContent = `${floor?.label || selectedFloor} · ${EQUIPMENT_LABELS[selectedEquipment]}`;
-  document.querySelector("#equipmentSummary").textContent = `${scopedRooms.length} chambres affichées · ${visibleTypeCount} TIP EXCEL · ${undefinedCount} non définie${undefinedCount > 1 ? "s" : ""}${unavailableCount ? ` · ${unavailableCount} indisponible${unavailableCount > 1 ? "s" : ""}` : ""}`;
+  const selectedLabel = selectedTip ? `Type ${String(visuals.get(selectedTip).code).padStart(2, "0")} · ${selectedTip} — ` : "";
+  document.querySelector("#equipmentSummary").textContent = `${selectedLabel}${scopedRooms.length} chambres affichées · ${visibleTypeCount} TIP EXCEL · ${undefinedCount} non définie${undefinedCount > 1 ? "s" : ""}${unavailableCount ? ` · ${unavailableCount} indisponible${unavailableCount > 1 ? "s" : ""}` : ""}`;
   document.querySelector("#equipmentPlanEmpty").hidden = true;
   renderLegend(model, visuals);
   renderDetail(selectedRoom);
@@ -436,6 +457,10 @@ function initialize() {
   document.querySelector("#equipmentKindSelect").addEventListener("change", (event) => { selectedEquipment = event.target.value; selectedTip = null; selectedRoom = null; const model = modelCache.get(selectedFloor); if (model) render(model); });
   document.querySelector("#equipmentCategorySelect").addEventListener("change", (event) => {
     selectedCategory = event.target.value; selectedTip = null; selectedRoom = null;
+    const model = modelCache.get(selectedFloor); if (model) render(model);
+  });
+  document.querySelector("#equipmentTipSelect").addEventListener("change", (event) => {
+    selectedTip = event.target.value || null; selectedRoom = null;
     const model = modelCache.get(selectedFloor); if (model) render(model);
   });
   document.querySelector("#equipmentLegend").addEventListener("click", (event) => {
