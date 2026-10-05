@@ -2,7 +2,7 @@ import { cleanDxfText, roomNumberFromText } from "./dxf-identification.js";
 import { EQUIPMENT_LABELS, EQUIPMENT_RECORDS, equipmentIsDefined, equipmentRecord } from "./equipment-data.js";
 import { ROOMS_BY_FLOOR } from "./project-data.js";
 
-const UNDEFINED_COLOR = "#d83a3a";
+const UNDEFINED_COLOR = "#ff003c";
 const EXECUTIVE_COLOR = "#969d99";
 let projectDefinition = null;
 let selectedFloor = "r2";
@@ -175,10 +175,11 @@ function render(model) {
     const category = roomCategory(room.number);
     const color = category === "executive" ? EXECUTIVE_COLOR : defined ? colors.get(record.tipExcel) : UNDEFINED_COLOR;
     const selected = room.number === selectedRoom ? " selected" : "";
+    const undefinedClass = category !== "executive" && !defined ? " undefined" : "";
     const filtered = roomVisible(room.number, record) ? "" : " filtered-out";
     const label = category === "executive" ? "Executive" : record?.tipExcel || "Non défini";
-    if (room.polygon) return `<path class="equipment-room${selected}${filtered}" data-room="${room.number}" style="--equipment-color:${color}" d="${pathFromPoints(room.polygon, true)}"><title>Chambre ${room.number} · ${escapeText(label)}</title></path>`;
-    return `<circle class="equipment-room equipment-room-marker${selected}${filtered}" data-room="${room.number}" style="--equipment-color:${color}" cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}"><title>Chambre ${room.number} · ${escapeText(label)}</title></circle>`;
+    if (room.polygon) return `<path class="equipment-room${undefinedClass}${selected}${filtered}" data-room="${room.number}" style="--equipment-color:${color}" d="${pathFromPoints(room.polygon, true)}"><title>Chambre ${room.number} · ${escapeText(label)}</title></path>`;
+    return `<circle class="equipment-room equipment-room-marker${undefinedClass}${selected}${filtered}" data-room="${room.number}" style="--equipment-color:${color}" cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}"><title>Chambre ${room.number} · ${escapeText(label)}</title></circle>`;
   }).join("");
   const labels = model.rooms.map((room) => `<text class="equipment-room-label${roomVisible(room.number, equipmentRecord(selectedEquipment, room.number)) ? "" : " filtered-out"}" x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle">${room.number}</text>`).join("");
   svg.innerHTML = `<g transform="scale(1 -1)">${roomShapes}</g><g class="equipment-architecture" transform="scale(1 -1)">${model.architecture}</g><g>${labels}</g>`;
