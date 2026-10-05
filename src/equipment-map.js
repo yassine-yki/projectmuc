@@ -105,7 +105,18 @@ function buildModel(dxf) {
 
 function colorMapFor(equipment) {
   const tips = [...new Set(EQUIPMENT_RECORDS.filter((record) => record.equipment === equipment && equipmentIsDefined(record)).map((record) => record.tipExcel))].sort();
-  return new Map(tips.map((tip, index) => [tip, `hsl(${Math.round(index * 347.5 / Math.max(1, tips.length))} 64% 55%)`]));
+  const hues = [45, 68, 90, 112, 134, 156, 178, 198, 216, 234, 252, 270, 285];
+  const variants = [
+    { saturation: 72, lightness: 46 },
+    { saturation: 58, lightness: 62 },
+    { saturation: 82, lightness: 34 },
+    { saturation: 48, lightness: 74 },
+  ];
+  return new Map(tips.map((tip, index) => {
+    const hue = hues[index % hues.length];
+    const variant = variants[Math.floor(index / hues.length) % variants.length];
+    return [tip, `hsl(${hue} ${variant.saturation}% ${variant.lightness}%)`];
+  }));
 }
 
 function renderDetail(room) {
