@@ -222,11 +222,8 @@ function initialize() {
   initialized = true;
   document.querySelector("#equipmentFloorSelect").addEventListener("change", (event) => { selectedFloor = event.target.value; void loadFloor(); });
   document.querySelector("#equipmentKindSelect").addEventListener("change", (event) => { selectedEquipment = event.target.value; selectedTip = null; selectedRoom = null; const model = modelCache.get(selectedFloor); if (model) render(model); });
-  document.querySelector("#equipmentCategoryTabs").addEventListener("click", (event) => {
-    const button = event.target.closest("[data-equipment-category]");
-    if (!button) return;
-    selectedCategory = button.dataset.equipmentCategory; selectedTip = null; selectedRoom = null;
-    document.querySelectorAll("[data-equipment-category]").forEach((item) => item.classList.toggle("active", item === button));
+  document.querySelector("#equipmentCategorySelect").addEventListener("change", (event) => {
+    selectedCategory = event.target.value; selectedTip = null; selectedRoom = null;
     const model = modelCache.get(selectedFloor); if (model) render(model);
   });
   document.querySelector("#equipmentLegend").addEventListener("click", (event) => {
@@ -251,5 +248,6 @@ export async function openEquipmentMap(definition) {
   if (!definition.floors.some((floor) => floor.id === selectedFloor)) selectedFloor = definition.floors[0]?.id || "r2";
   select.value = selectedFloor;
   document.querySelector("#equipmentKindSelect").value = selectedEquipment;
+  document.querySelector("#equipmentCategorySelect").value = selectedCategory;
   await loadFloor();
 }
