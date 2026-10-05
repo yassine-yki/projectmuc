@@ -109,18 +109,14 @@ function buildModel(dxf) {
 
 function colorMapFor(equipment) {
   const tips = [...new Set(EQUIPMENT_RECORDS.filter((record) => record.equipment === equipment && equipmentIsDefined(record)).map((record) => record.tipExcel))].sort();
-  const hues = [45, 156, 216, 90, 198, 134, 234, 68, 178, 112, 270];
-  const variants = [
-    { saturation: 72, lightness: 46 },
-    { saturation: 58, lightness: 62 },
-    { saturation: 82, lightness: 34 },
-    { saturation: 48, lightness: 74 },
+  const palette = [
+    "#FFD400", "#0057B8", "#7A1FA2", "#FF8C00", "#00B8D9", "#6B3E26", "#008F5A", "#2D2A8C",
+    "#C79200", "#0081A7", "#A55D00", "#3A86FF", "#8C5E35", "#00AEEF", "#B8860B", "#1D4E89",
+    "#C06C00", "#0077B6", "#7D4E24", "#4361EE", "#AA7C00", "#0096C7", "#4A4E69", "#F2C14E",
+    "#003566", "#9C6644", "#4895EF", "#00B4D8", "#946B2D", "#264653", "#6C8CD5", "#D69E2E",
+    "#004E89", "#B87333", "#1A759F", "#735751", "#2F6690", "#D4A017", "#3F37C9", "#007F9E",
   ];
-  return new Map(tips.map((tip, index) => {
-    const hue = hues[index % hues.length];
-    const variant = variants[Math.floor(index / hues.length) % variants.length];
-    return [tip, `hsl(${hue} ${variant.saturation}% ${variant.lightness}%)`];
-  }));
+  return new Map(tips.map((tip, index) => [tip, palette[index % palette.length]]));
 }
 
 function roomCategoryFor(floorId, roomNumber) {
