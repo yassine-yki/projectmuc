@@ -109,7 +109,7 @@ function buildModel(dxf) {
 
 function colorMapFor(equipment) {
   const tips = [...new Set(EQUIPMENT_RECORDS.filter((record) => record.equipment === equipment && equipmentIsDefined(record)).map((record) => record.tipExcel))].sort();
-  const hues = [45, 68, 90, 112, 134, 156, 178, 198, 216, 234, 252, 270, 285];
+  const hues = [45, 156, 216, 90, 198, 134, 234, 68, 178, 112, 270];
   const variants = [
     { saturation: 72, lightness: 46 },
     { saturation: 58, lightness: 62 },
