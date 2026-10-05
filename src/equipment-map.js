@@ -107,38 +107,30 @@ function buildModel(dxf) {
   return { bounds, rooms, architecture: entities.map((entity) => entitySvg(entity, dxf.blocks || {})).join("") };
 }
 
-function colorMapFor(equipment) {
+function visualMapFor(equipment) {
   const tips = [...new Set(EQUIPMENT_RECORDS.filter((record) => record.equipment === equipment && equipmentIsDefined(record)).map((record) => record.tipExcel))].sort();
-  const palette = [
-    "#1E88E5", "#00A651", "#FFD600", "#9C6ADE", "#7A4E2D", "#FF5FA2", "#FF8C00", "#0B2E59", "#F4F0E6", "#66C7F2",
-    "#0047AB", "#2E7D32", "#E6B800", "#6A1B9A", "#4E342E", "#D81B60", "#EF6C00", "#1565C0", "#D8CFC0", "#0288D1",
-    "#90CAF9", "#81C784", "#FFF176", "#CE93D8", "#A1887F", "#F48FB1", "#FFB74D", "#283593", "#FFF8E1", "#4FC3F7",
-    "#00796B", "#B8860B", "#8D6E63", "#AB47BC", "#F06292", "#F9A825", "#3949AB", "#BCAAA4", "#29B6F6", "#00695C",
-  ];
-  const overrides = new Map([
-    ["RO.ML02-R-116", "#1E88E5"],
-    ["RO.ML05", "#FFD600"],
-    ["RO.ML05.1-2-R", "#9C6ADE"],
-  ]);
-  const reserved = new Set(tips.map((tip) => overrides.get(tip)).filter(Boolean));
-  const available = palette.filter((color) => !reserved.has(color));
-  const rgb = (color) => [1, 3, 5].map((index) => parseInt(color.slice(index, index + 2), 16));
-  const distance = (first, second) => {
-    const [r1, g1, b1] = rgb(first), [r2, g2, b2] = rgb(second);
-    return Math.sqrt((r1 - r2) ** 2 * 0.3 + (g1 - g2) ** 2 * 0.59 + (b1 - b2) ** 2 * 0.11);
-  };
-  const spread = [];
-  while (available.length) {
-    if (!spread.length) { spread.push(available.shift()); continue; }
-    let bestIndex = 0, bestDistance = -1;
-    available.forEach((candidate, index) => {
-      const nearest = Math.min(...[...spread, ...reserved].map((selected) => distance(candidate, selected)));
-      if (nearest > bestDistance) { bestDistance = nearest; bestIndex = index; }
-    });
-    spread.push(available.splice(bestIndex, 1)[0]);
-  }
-  let colorIndex = 0;
-  return new Map(tips.map((tip) => [tip, overrides.get(tip) || spread[colorIndex++ % spread.length]]));
+  const palette = ["#1E88E5", "#00A651", "#FFD600", "#9C6ADE", "#7A4E2D", "#FF5FA2", "#FF8C00", "#0B2E59", "#F4F0E6", "#66C7F2", "#00B8D9", "#B8860B"];
+  return new Map(tips.map((tip, index) => [tip, { color: palette[index % palette.length], pattern: Math.floor(index / palette.length), code: index + 1 }]));
+}
+
+function patternDefinitions(visuals, prefix) {
+  return [...visuals.values()].filter((visual) => visual.pattern > 0).map((visual) => {
+    const id = `${prefix}-${visual.code}`;
+    if (visual.pattern === 1) return `<pattern id="${id}" width="0.65" height="0.65" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.65" height="0.65" fill="${visual.color}"/><rect width="0.18" height="0.65" fill="#fff" fill-opacity="0.72"/></pattern>`;
+    if (visual.pattern === 2) return `<pattern id="${id}" width="0.72" height="0.72" patternUnits="userSpaceOnUse"><rect width="0.72" height="0.72" fill="${visual.color}"/><circle cx="0.36" cy="0.36" r="0.13" fill="#fff" fill-opacity="0.8"/></pattern>`;
+    return `<pattern id="${id}" width="0.75" height="0.75" patternUnits="userSpaceOnUse"><rect width="0.75" height="0.75" fill="${visual.color}"/><path d="M0 0L.75 .75M.75 0L0 .75" stroke="#fff" stroke-opacity="0.72" stroke-width="0.11"/></pattern>`;
+  }).join("");
+}
+
+function visualFill(visual, prefix) {
+  return visual.pattern ? `url(#${prefix}-${visual.code})` : visual.color;
+}
+
+function swatchBackground(visual) {
+  if (visual.pattern === 1) return `repeating-linear-gradient(135deg,${visual.color} 0 5px,#fff 5px 7px)`;
+  if (visual.pattern === 2) return `radial-gradient(circle at 50% 50%,#fff 0 2px,transparent 2.5px),${visual.color}`;
+  if (visual.pattern >= 3) return `repeating-linear-gradient(45deg,transparent 0 4px,#fff 4px 5px),repeating-linear-gradient(-45deg,${visual.color} 0 4px,#fff 4px 5px)`;
+  return visual.color;
 }
 
 function roomCategoryFor(floorId, roomNumber) {
@@ -171,7 +163,7 @@ function renderDetail(room) {
     <dl><div><dt>Type</dt><dd>${category === "executive" ? "Executive" : escapeText(record?.roomType || category)}</dd></div><div><dt>Typologie</dt><dd>${escapeText(record?.typology || "Non renseignée")}</dd></div><div><dt>PRODUCT CODE</dt><dd>${unavailable ? "Indisponible" : escapeText(record?.productCode || "Non défini")}</dd></div><div><dt>TIP EXCEL</dt><dd class="${defined || unavailable ? "" : "undefined"}">${unavailable ? unavailableLabel : escapeText(record?.tipExcel || "Non défini")}</dd></div></dl>`;
 }
 
-function renderLegend(model, colors) {
+function renderLegend(model, visuals) {
   const categoryRooms = model.rooms.filter((room) => selectedCategory === "all" || roomCategory(room.number) === selectedCategory);
   const visible = categoryRooms.filter((room) => !equipmentUnavailable(room.number)).map((room) => equipmentRecord(selectedEquipment, room.number));
   const grouped = new Map();
@@ -183,7 +175,7 @@ function renderLegend(model, colors) {
     tips.set(record.tipExcel, (tips.get(record.tipExcel) || 0) + 1);
   }
   const groups = [...grouped.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([product, tips]) => `
-    <section class="equipment-legend-group"><h3>${escapeText(product)}</h3>${[...tips.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([tip, count]) => `<button type="button" class="equipment-legend-item${selectedTip === tip ? " active" : ""}" data-equipment-tip="${escapeText(tip)}" aria-pressed="${selectedTip === tip}"><i style="--equipment-color:${colors.get(tip)}"></i><span>${escapeText(tip)}</span><strong>${count}</strong></button>`).join("")}</section>`).join("");
+    <section class="equipment-legend-group"><h3>${escapeText(product)}</h3>${[...tips.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([tip, count]) => { const visual=visuals.get(tip);return `<button type="button" class="equipment-legend-item${selectedTip === tip ? " active" : ""}" data-equipment-tip="${escapeText(tip)}" aria-pressed="${selectedTip === tip}"><i style="background:${swatchBackground(visual)}"></i><span><b class="equipment-type-code">${String(visual.code).padStart(2,"0")}</b>${escapeText(tip)}</span><strong>${count}</strong></button>`; }).join("")}</section>`).join("");
   const executiveCount = categoryRooms.filter((room) => roomCategory(room.number) === "executive").length;
   const unavailableCount = categoryRooms.filter((room) => roomCategory(room.number) !== "executive" && equipmentUnavailable(room.number)).length;
   const undefinedGroup = undefinedCount ? `<section class="equipment-legend-group undefined"><h3>Données à compléter</h3><div class="equipment-legend-item static"><i style="--equipment-color:${UNDEFINED_COLOR}"></i><span>Non défini</span><strong>${undefinedCount}</strong></div></section>` : "";
@@ -203,15 +195,16 @@ function ensurePlanStructure(model) {
     if (room.polygon) return `<path class="equipment-room" data-room="${room.number}" d="${pathFromPoints(room.polygon, true)}"><title></title></path>`;
     return `<circle class="equipment-room equipment-room-marker" data-room="${room.number}" cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}"><title></title></circle>`;
   }).join("");
-  const labels = model.rooms.map((room) => `<text class="equipment-room-label" data-room-label="${room.number}" x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle">${room.number}</text>`).join("");
-  svg.innerHTML = `<defs><pattern id="equipment-unavailable-pattern" width="0.65" height="0.65" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.65" height="0.65" fill="#555c58"></rect><rect width="0.2" height="0.65" fill="#aeb4b1"></rect></pattern></defs><g transform="scale(1 -1)">${roomShapes}</g><g class="equipment-architecture" transform="scale(1 -1)">${model.architecture}</g><g>${labels}</g>`;
+  const labels = model.rooms.map((room) => `<text class="equipment-room-label" data-room-label="${room.number}" x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle">${room.number}</text><text class="equipment-tip-code" data-tip-code="${room.number}" x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y + labelSize * 1.05)}" font-size="${numberValue(labelSize * .68)}" text-anchor="middle"></text>`).join("");
+  svg.innerHTML = `<defs id="equipment-defs"></defs><g transform="scale(1 -1)">${roomShapes}</g><g class="equipment-architecture" transform="scale(1 -1)">${model.architecture}</g><g>${labels}</g>`;
   svg.dataset.floor = selectedFloor;
   return svg;
 }
 
 function render(model) {
   const svg = ensurePlanStructure(model);
-  const colors = colorMapFor(selectedEquipment);
+  const visuals = visualMapFor(selectedEquipment);
+  svg.querySelector("#equipment-defs").innerHTML = `<pattern id="equipment-unavailable-pattern" width="0.65" height="0.65" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.65" height="0.65" fill="#555c58"></rect><rect width="0.2" height="0.65" fill="#aeb4b1"></rect></pattern>${patternDefinitions(visuals, "equipment-tip")}`;
   const roomsByNumber = new Map(model.rooms.map((room) => [room.number, room]));
   svg.querySelectorAll(".equipment-room").forEach((element) => {
     const roomNumber = Number(element.dataset.room);
@@ -220,9 +213,11 @@ function render(model) {
     const defined = equipmentIsDefined(record);
     const category = roomCategory(roomNumber);
     const unavailable = equipmentUnavailable(roomNumber);
-    const color = unavailable ? EXECUTIVE_COLOR : defined ? colors.get(record.tipExcel) : UNDEFINED_COLOR;
+    const visual = defined ? visuals.get(record.tipExcel) : null;
+    const color = unavailable ? EXECUTIVE_COLOR : defined ? visual.color : UNDEFINED_COLOR;
     const label = category === "executive" ? "Executive" : unavailable ? "Indisponible" : record?.tipExcel || "Non défini";
     element.style.setProperty("--equipment-color", color);
+    element.style.fill = unavailable ? "" : defined ? visualFill(visual, "equipment-tip") : UNDEFINED_COLOR;
     element.classList.toggle("undefined", !unavailable && !defined);
     element.classList.toggle("unavailable", unavailable);
     element.classList.toggle("selected", roomNumber === selectedRoom);
@@ -234,6 +229,11 @@ function render(model) {
     const roomNumber = Number(label.dataset.roomLabel);
     label.classList.toggle("filtered-out", !roomVisible(roomNumber, equipmentRecord(selectedEquipment, roomNumber)));
   });
+  svg.querySelectorAll("[data-tip-code]").forEach((label) => {
+    const roomNumber = Number(label.dataset.tipCode), record = equipmentRecord(selectedEquipment, roomNumber), visual = equipmentIsDefined(record) ? visuals.get(record.tipExcel) : null;
+    label.textContent = equipmentUnavailable(roomNumber) ? "—" : visual ? String(visual.code).padStart(2, "0") : "ND";
+    label.classList.toggle("filtered-out", !roomVisible(roomNumber, record));
+  });
   const scopedRooms = model.rooms.filter((room) => roomVisible(room.number, equipmentRecord(selectedEquipment, room.number)));
   const undefinedCount = scopedRooms.filter((room) => !equipmentUnavailable(room.number) && !equipmentIsDefined(equipmentRecord(selectedEquipment, room.number))).length;
   const unavailableCount = scopedRooms.filter((room) => equipmentUnavailable(room.number)).length;
@@ -242,7 +242,7 @@ function render(model) {
   document.querySelector("#equipmentPlanTitle").textContent = `${floor?.label || selectedFloor} · ${EQUIPMENT_LABELS[selectedEquipment]}`;
   document.querySelector("#equipmentSummary").textContent = `${scopedRooms.length} chambres affichées · ${visibleTypeCount} TIP EXCEL · ${undefinedCount} non définie${undefinedCount > 1 ? "s" : ""}${unavailableCount ? ` · ${unavailableCount} indisponible${unavailableCount > 1 ? "s" : ""}` : ""}`;
   document.querySelector("#equipmentPlanEmpty").hidden = true;
-  renderLegend(model, colors);
+  renderLegend(model, visuals);
   renderDetail(selectedRoom);
 }
 
@@ -307,7 +307,7 @@ function reportLegend(model, floorId, equipment, category) {
 }
 
 function reportSvg(model, floorId, equipment, category) {
-  const colors = colorMapFor(equipment);
+  const visuals = visualMapFor(equipment);
   const width = model.bounds.maxX - model.bounds.minX;
   const height = model.bounds.maxY - model.bounds.minY;
   const labelSize = Math.max(0.34, Math.min(0.58, height * 0.012));
@@ -315,13 +315,14 @@ function reportSvg(model, floorId, equipment, category) {
     const applicable = roomCategoryFor(floorId, room.number) === category;
     const record = equipmentRecord(equipment, room.number);
     const defined = equipmentIsDefined(record);
-    const fill = applicable ? (defined ? colors.get(record.tipExcel) : UNDEFINED_COLOR) : "url(#report-unavailable)";
+    const visual = defined ? visuals.get(record.tipExcel) : null;
+    const fill = applicable ? (defined ? visualFill(visual, "report-tip") : UNDEFINED_COLOR) : "url(#report-unavailable)";
     const stroke = applicable && !defined ? "#b9002c" : applicable ? "#34443b" : "#242a27";
     if (room.polygon) return `<path d="${pathFromPoints(room.polygon, true)}" fill="${fill}" fill-opacity="${applicable ? 0.82 : 1}" stroke="${stroke}" stroke-width="0.13"/>`;
     return `<circle cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}" fill="${fill}" stroke="${stroke}" stroke-width="0.13"/>`;
   }).join("");
-  const labels = model.rooms.map((room) => `<text x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle" font-family="Arial" font-weight="700" fill="#17231d" stroke="#ffffff" stroke-width="0.08" paint-order="stroke">${room.number}</text>`).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="${Math.round(1600 * height / width)}" viewBox="${numberValue(model.bounds.minX)} ${numberValue(-model.bounds.maxY)} ${numberValue(width)} ${numberValue(height)}"><rect width="100%" height="100%" fill="#fff"/><defs><pattern id="report-unavailable" width="0.65" height="0.65" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.65" height="0.65" fill="#555c58"/><rect width="0.2" height="0.65" fill="#aeb4b1"/></pattern></defs><g transform="scale(1 -1)">${shapes}</g><g transform="scale(1 -1)" fill="none" stroke="#7c8580" stroke-width="0.045" opacity="0.72">${model.architecture}</g><g>${labels}</g></svg>`;
+  const labels = model.rooms.map((room) => { const record=equipmentRecord(equipment,room.number),visual=equipmentIsDefined(record)?visuals.get(record.tipExcel):null,applicable=roomCategoryFor(floorId,room.number)===category,code=applicable?(visual?String(visual.code).padStart(2,"0"):"ND"):"—";return `<text x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle" font-family="Arial" font-weight="700" fill="#17231d" stroke="#ffffff" stroke-width="0.08" paint-order="stroke">${room.number}</text><text x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y+labelSize*1.05)}" font-size="${numberValue(labelSize*.68)}" text-anchor="middle" font-family="Arial" font-weight="700" fill="#17231d" stroke="#ffffff" stroke-width="0.06" paint-order="stroke">${code}</text>`; }).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="${Math.round(1600 * height / width)}" viewBox="${numberValue(model.bounds.minX)} ${numberValue(-model.bounds.maxY)} ${numberValue(width)} ${numberValue(height)}"><rect width="100%" height="100%" fill="#fff"/><defs><pattern id="report-unavailable" width="0.65" height="0.65" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.65" height="0.65" fill="#555c58"/><rect width="0.2" height="0.65" fill="#aeb4b1"/></pattern>${patternDefinitions(visuals,"report-tip")}</defs><g transform="scale(1 -1)">${shapes}</g><g transform="scale(1 -1)" fill="none" stroke="#7c8580" stroke-width="0.045" opacity="0.72">${model.architecture}</g><g>${labels}</g></svg>`;
 }
 
 async function svgJpeg(svg) {
@@ -344,11 +345,11 @@ async function logoData() {
   return await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
 }
 
-function drawReportLegend(pdf, legend, colors) {
+function drawReportLegend(pdf, legend, visuals) {
   const items = [];
   for (const [product, tips] of [...legend.grouped.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     items.push({ heading: product });
-    for (const [tip, count] of [...tips.entries()].sort(([a], [b]) => a.localeCompare(b))) items.push({ tip, count, color: colors.get(tip) });
+    for (const [tip, count] of [...tips.entries()].sort(([a], [b]) => a.localeCompare(b))) items.push({ tip, count, visual: visuals.get(tip) });
   }
   if (legend.undefinedCount) items.push({ tip: "Non défini", count: legend.undefinedCount, color: UNDEFINED_COLOR });
   if (legend.unavailableCount) items.push({ tip: "Hors de cette famille", count: legend.unavailableCount, unavailable: true });
@@ -362,18 +363,21 @@ function drawReportLegend(pdf, legend, colors) {
       pdf.text(String(item.heading), 234, y, { maxWidth: 53 }); y += lineHeight;
       continue;
     }
-    const [red, green, blue] = item.unavailable ? [85, 92, 88] : hslRgb(item.color);
+    const [red, green, blue] = item.unavailable ? [85, 92, 88] : hslRgb(item.color || item.visual.color);
     pdf.setFillColor(red, green, blue); pdf.setDrawColor(45, 55, 49); pdf.rect(234, y - 2.7, 3.2, 3.2, "FD");
     if (item.unavailable) { pdf.setDrawColor(180, 185, 182); pdf.line(234, y + 0.2, 237.2, y - 2.6); }
+    if (item.visual?.pattern === 1) { pdf.setDrawColor(255,255,255); pdf.line(234,y+.2,237.2,y-2.6); }
+    if (item.visual?.pattern === 2) { pdf.setFillColor(255,255,255); pdf.circle(235.6,y-1.1,.55,"F"); }
+    if (item.visual?.pattern >= 3) { pdf.setDrawColor(255,255,255); pdf.line(234,y+.2,237.2,y-2.6); pdf.line(234,y-2.6,237.2,y+.2); }
     pdf.setFont("helvetica", "normal"); pdf.setFontSize(Math.min(6.8, lineHeight + 1.5)); pdf.setTextColor(35, 46, 40);
-    pdf.text(String(item.tip), 239, y, { maxWidth: 43 }); pdf.setFont("helvetica", "bold"); pdf.text(String(item.count), 287, y, { align: "right" }); y += lineHeight;
+    pdf.text(`${item.visual ? String(item.visual.code).padStart(2,"0")+" · " : ""}${item.tip}`, 239, y, { maxWidth: 43 }); pdf.setFont("helvetica", "bold"); pdf.text(String(item.count), 287, y, { align: "right" }); y += lineHeight;
   }
 }
 
 async function equipmentPdf(equipment, category, logo, onPage) {
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4", compress: true });
-  const colors = colorMapFor(equipment);
+  const visuals = visualMapFor(equipment);
   for (let index = 0; index < projectDefinition.floors.length; index += 1) {
     const floor = projectDefinition.floors[index];
     const model = await floorModel(floor);
@@ -389,7 +393,7 @@ async function equipmentPdf(equipment, category, logo, onPage) {
     const drawWidth = image.width * ratio, drawHeight = image.height * ratio;
     pdf.addImage(image.data, "JPEG", 8 + (maxWidth - drawWidth) / 2, 25 + (maxHeight - drawHeight) / 2, drawWidth, drawHeight, undefined, "FAST");
     pdf.setDrawColor(206, 214, 209); pdf.rect(7, 24, 220, 172);
-    drawReportLegend(pdf, reportLegend(model, floor.id, equipment, category), colors);
+    drawReportLegend(pdf, reportLegend(model, floor.id, equipment, category), visuals);
     pdf.setTextColor(80, 91, 85); pdf.setFont("helvetica", "normal"); pdf.setFontSize(8); pdf.text(String(index + 1), 148.5, 204, { align: "center" });
     onPage();
   }
