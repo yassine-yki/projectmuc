@@ -903,6 +903,8 @@ body img.brand-mark { width:64px; height:54px; object-fit:contain; background:tr
 .equipment-room.filtered-out,.equipment-room-label.filtered-out { opacity:.06; pointer-events:none; }
 .equipment-room-label { fill:#14231c; font-family:Arial,sans-serif; font-weight:800; paint-order:stroke; stroke:#fff; stroke-width:.12; pointer-events:none; }
 .equipment-legend-panel { min-width:0; overflow:auto; padding:16px; background:var(--surface-soft); }
+.equipment-legend-panel .page-heading .button { width:100%; margin-top:10px; }
+#equipmentExportStatus:empty { display:none; }
 .equipment-room-detail { margin:0 0 12px; padding:12px; border:1px solid var(--line); border-radius:9px; background:#fff; }
 .equipment-room-detail h3 { margin:3px 0 10px; }
 .equipment-room-detail dl { display:grid; gap:6px; margin:0; }

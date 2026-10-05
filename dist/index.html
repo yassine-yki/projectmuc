@@ -8,8 +8,9 @@
     <meta name="apple-mobile-web-app-title" content="Projet MUC" />
     <title>Projet MUC — Suivi du chantier</title>
     <link rel="icon" type="image/png" href="/muc-building.png" />
-    <script type="module" crossorigin src="/assets/index-G78PWsNH.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-aSlNdZKS.css">
+    <script type="module" crossorigin src="/assets/index-BGbfEMCB.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-hePW80VL.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-BGj8Amcz.css">
   </head>
   <body>
     <dialog class="project-dialog access-dialog" id="loginDialog" aria-labelledby="loginTitle">
@@ -241,7 +242,7 @@
         </div>
       </section>
       <aside class="equipment-legend-panel">
-        <div class="page-heading"><span class="eyebrow">Légende Excel</span><h2>PRODUCT CODE / TIP EXCEL</h2><p>Chaque TIP EXCEL possède sa couleur. Le rouge indique une donnée non définie.</p></div>
+        <div class="page-heading"><span class="eyebrow">Légende Excel</span><h2>PRODUCT CODE / TIP EXCEL</h2><p>Chaque TIP EXCEL possède sa couleur. Le rouge indique une donnée non définie.</p><button type="button" class="button primary" id="exportEquipmentPdfs">Exporter les PDF de repérage</button><p id="equipmentExportStatus" class="access-hint" role="status"></p></div>
         <div id="equipmentRoomDetail" class="equipment-room-detail"><strong>Sélectionnez une chambre sur le plan</strong></div>
         <div id="equipmentLegend" class="equipment-legend"></div>
       </aside>

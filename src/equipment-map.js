@@ -123,8 +123,12 @@ function colorMapFor(equipment) {
   }));
 }
 
+function roomCategoryFor(floorId, roomNumber) {
+  return ROOMS_BY_FLOOR[floorId]?.find((room) => room.number === roomNumber)?.roomType || "standard";
+}
+
 function roomCategory(roomNumber) {
-  return ROOMS_BY_FLOOR[selectedFloor]?.find((room) => room.number === roomNumber)?.roomType || "standard";
+  return roomCategoryFor(selectedFloor, roomNumber);
 }
 
 function equipmentUnavailable(roomNumber) {
@@ -225,6 +229,19 @@ function render(model) {
   renderDetail(selectedRoom);
 }
 
+async function floorModel(floor) {
+  if (modelCache.has(floor.id)) return modelCache.get(floor.id);
+  if (!floor.dxfPath) throw new Error(`Aucun plan DXF disponible pour ${floor.label}.`);
+  const response = await fetch(`${floor.dxfPath}?v=${encodeURIComponent(floor.updatedAt || "equipment")}`);
+  if (!response.ok) throw new Error(`Plan ${floor.label} introuvable (${response.status})`);
+  const source = await response.text();
+  const Parser = window.DxfParser;
+  if (!Parser) throw new Error("Le lecteur DXF n’est pas disponible.");
+  const model = buildModel(new Parser().parseSync(source));
+  modelCache.set(floor.id, model);
+  return model;
+}
+
 async function loadFloor() {
   const empty = document.querySelector("#equipmentPlanEmpty");
   empty.hidden = false;
@@ -232,14 +249,7 @@ async function loadFloor() {
   const floor = projectDefinition.floors.find((item) => item.id === selectedFloor);
   if (!floor?.dxfPath) { empty.textContent = "Aucun plan DXF disponible pour cet étage."; return; }
   try {
-    if (!modelCache.has(floor.id)) {
-      const response = await fetch(`${floor.dxfPath}?v=${encodeURIComponent(floor.updatedAt || "equipment")}`);
-      if (!response.ok) throw new Error(`Plan introuvable (${response.status})`);
-      const source = await response.text();
-      const Parser = window.DxfParser;
-      if (!Parser) throw new Error("Le lecteur DXF n’est pas disponible.");
-      modelCache.set(floor.id, buildModel(new Parser().parseSync(source)));
-    }
+    await floorModel(floor);
     selectedRoom = null; selectedTip = null;
     render(modelCache.get(floor.id));
   } catch (error) {
@@ -247,6 +257,155 @@ async function loadFloor() {
     const svg = document.querySelector("#equipmentPlan");
     svg.innerHTML = ""; delete svg.dataset.floor;
   }
+}
+
+function hslRgb(value) {
+  const match = String(value).match(/hsl\(([\d.]+)\s+([\d.]+)%\s+([\d.]+)%\)/);
+  if (!match) {
+    const hex = String(value).replace("#", "");
+    return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+  }
+  const hue = Number(match[1]) / 360, saturation = Number(match[2]) / 100, lightness = Number(match[3]) / 100;
+  const channel = (offset) => {
+    const position = (offset + hue * 12) % 12;
+    const amplitude = saturation * Math.min(lightness, 1 - lightness);
+    return Math.round(255 * (lightness - amplitude * Math.max(-1, Math.min(position - 3, 9 - position, 1))));
+  };
+  return [channel(0), channel(8), channel(4)];
+}
+
+function reportLegend(model, floorId, equipment, category) {
+  const grouped = new Map();
+  let undefinedCount = 0;
+  let unavailableCount = 0;
+  for (const room of model.rooms) {
+    if (roomCategoryFor(floorId, room.number) !== category) { unavailableCount += 1; continue; }
+    const record = equipmentRecord(equipment, room.number);
+    if (!equipmentIsDefined(record)) { undefinedCount += 1; continue; }
+    if (!grouped.has(record.productCode)) grouped.set(record.productCode, new Map());
+    const tips = grouped.get(record.productCode);
+    tips.set(record.tipExcel, (tips.get(record.tipExcel) || 0) + 1);
+  }
+  return { grouped, undefinedCount, unavailableCount };
+}
+
+function reportSvg(model, floorId, equipment, category) {
+  const colors = colorMapFor(equipment);
+  const width = model.bounds.maxX - model.bounds.minX;
+  const height = model.bounds.maxY - model.bounds.minY;
+  const labelSize = Math.max(0.34, Math.min(0.58, height * 0.012));
+  const shapes = model.rooms.map((room) => {
+    const applicable = roomCategoryFor(floorId, room.number) === category;
+    const record = equipmentRecord(equipment, room.number);
+    const defined = equipmentIsDefined(record);
+    const fill = applicable ? (defined ? colors.get(record.tipExcel) : UNDEFINED_COLOR) : "url(#report-unavailable)";
+    const stroke = applicable && !defined ? "#b9002c" : applicable ? "#34443b" : "#242a27";
+    if (room.polygon) return `<path d="${pathFromPoints(room.polygon, true)}" fill="${fill}" fill-opacity="${applicable ? 0.82 : 1}" stroke="${stroke}" stroke-width="0.13"/>`;
+    return `<circle cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}" fill="${fill}" stroke="${stroke}" stroke-width="0.13"/>`;
+  }).join("");
+  const labels = model.rooms.map((room) => `<text x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle" font-family="Arial" font-weight="700" fill="#17231d" stroke="#ffffff" stroke-width="0.08" paint-order="stroke">${room.number}</text>`).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="${Math.round(1600 * height / width)}" viewBox="${numberValue(model.bounds.minX)} ${numberValue(-model.bounds.maxY)} ${numberValue(width)} ${numberValue(height)}"><rect width="100%" height="100%" fill="#fff"/><defs><pattern id="report-unavailable" width="0.65" height="0.65" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.65" height="0.65" fill="#555c58"/><rect width="0.2" height="0.65" fill="#aeb4b1"/></pattern></defs><g transform="scale(1 -1)">${shapes}</g><g transform="scale(1 -1)" fill="none" stroke="#7c8580" stroke-width="0.045" opacity="0.72">${model.architecture}</g><g>${labels}</g></svg>`;
+}
+
+async function svgJpeg(svg) {
+  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+  try {
+    const image = new Image(); image.src = url; await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.min(1800, image.naturalWidth || 1600);
+    canvas.height = Math.max(1, Math.round(canvas.width * (image.naturalHeight || 1000) / (image.naturalWidth || 1600)));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Le plan ne peut pas être converti en image.");
+    context.fillStyle = "#fff"; context.fillRect(0, 0, canvas.width, canvas.height); context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return { data: canvas.toDataURL("image/jpeg", 0.9), width: canvas.width, height: canvas.height };
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function logoData() {
+  const response = await fetch("/muc-building.png");
+  const blob = await response.blob();
+  return await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
+}
+
+function drawReportLegend(pdf, legend, colors) {
+  const items = [];
+  for (const [product, tips] of [...legend.grouped.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    items.push({ heading: product });
+    for (const [tip, count] of [...tips.entries()].sort(([a], [b]) => a.localeCompare(b))) items.push({ tip, count, color: colors.get(tip) });
+  }
+  if (legend.undefinedCount) items.push({ tip: "Non défini", count: legend.undefinedCount, color: UNDEFINED_COLOR });
+  if (legend.unavailableCount) items.push({ tip: "Hors de cette famille", count: legend.unavailableCount, unavailable: true });
+  const lineHeight = Math.max(3.2, Math.min(5, 162 / Math.max(1, items.length)));
+  let y = 34;
+  pdf.setFont("helvetica", "bold"); pdf.setFontSize(9); pdf.setTextColor(31, 57, 39); pdf.text("Légende", 233, 28);
+  for (const item of items) {
+    if (item.heading) {
+      pdf.setFillColor(239, 242, 238); pdf.rect(232, y - 2.7, 57, lineHeight, "F");
+      pdf.setFont("helvetica", "bold"); pdf.setFontSize(Math.min(7.2, lineHeight + 1.8)); pdf.setTextColor(31, 48, 39);
+      pdf.text(String(item.heading), 234, y, { maxWidth: 53 }); y += lineHeight;
+      continue;
+    }
+    const [red, green, blue] = item.unavailable ? [85, 92, 88] : hslRgb(item.color);
+    pdf.setFillColor(red, green, blue); pdf.setDrawColor(45, 55, 49); pdf.rect(234, y - 2.7, 3.2, 3.2, "FD");
+    if (item.unavailable) { pdf.setDrawColor(180, 185, 182); pdf.line(234, y + 0.2, 237.2, y - 2.6); }
+    pdf.setFont("helvetica", "normal"); pdf.setFontSize(Math.min(6.8, lineHeight + 1.5)); pdf.setTextColor(35, 46, 40);
+    pdf.text(String(item.tip), 239, y, { maxWidth: 43 }); pdf.setFont("helvetica", "bold"); pdf.text(String(item.count), 287, y, { align: "right" }); y += lineHeight;
+  }
+}
+
+async function equipmentPdf(equipment, category, logo, onPage) {
+  const { jsPDF } = await import("jspdf");
+  const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4", compress: true });
+  const colors = colorMapFor(equipment);
+  for (let index = 0; index < projectDefinition.floors.length; index += 1) {
+    const floor = projectDefinition.floors[index];
+    const model = await floorModel(floor);
+    const image = await svgJpeg(reportSvg(model, floor.id, equipment, category));
+    if (index) pdf.addPage("a4", "landscape");
+    pdf.setFillColor(39, 83, 47); pdf.rect(0, 0, 297, 19, "F");
+    if (logo) pdf.addImage(logo, "PNG", 8, 2.5, 20, 14);
+    pdf.setTextColor(255, 255, 255); pdf.setFont("helvetica", "bold"); pdf.setFontSize(14);
+    pdf.text(`MUC - ${EQUIPMENT_LABELS[equipment]} - ${category === "standard" ? "Chambres Standard" : "Suites Junior"}`, 33, 11.5);
+    pdf.setFontSize(10); pdf.text(floor.label, 288, 11.5, { align: "right" });
+    const maxWidth = 218, maxHeight = 170;
+    const ratio = Math.min(maxWidth / image.width, maxHeight / image.height);
+    const drawWidth = image.width * ratio, drawHeight = image.height * ratio;
+    pdf.addImage(image.data, "JPEG", 8 + (maxWidth - drawWidth) / 2, 25 + (maxHeight - drawHeight) / 2, drawWidth, drawHeight, undefined, "FAST");
+    pdf.setDrawColor(206, 214, 209); pdf.rect(7, 24, 220, 172);
+    drawReportLegend(pdf, reportLegend(model, floor.id, equipment, category), colors);
+    pdf.setTextColor(80, 91, 85); pdf.setFont("helvetica", "normal"); pdf.setFontSize(8); pdf.text(String(index + 1), 148.5, 204, { align: "center" });
+    onPage();
+  }
+  return new Uint8Array(pdf.output("arraybuffer"));
+}
+
+async function exportEquipmentPdfs() {
+  const button = document.querySelector("#exportEquipmentPdfs");
+  const status = document.querySelector("#equipmentExportStatus");
+  const documents = [
+    ["headboard", "standard", "Headboard-Standard.pdf"], ["wardrobe", "standard", "Armoire-Standard.pdf"], ["bar", "standard", "Bar-Standard.pdf"],
+    ["headboard", "junior", "Headboard-Junior.pdf"], ["wardrobe", "junior", "Armoire-Junior.pdf"], ["bar", "junior", "Bar-Junior.pdf"], ["vanity", "junior", "Vanity-Junior.pdf"],
+  ];
+  const totalPages = documents.length * projectDefinition.floors.length;
+  let completed = 0;
+  button.disabled = true;
+  try {
+    status.textContent = `Préparation des plans : 0/${totalPages}`;
+    const logo = await logoData();
+    const files = {};
+    for (const [equipment, category, name] of documents) {
+      files[name] = await equipmentPdf(equipment, category, logo, () => { completed += 1; status.textContent = `Préparation des plans : ${completed}/${totalPages}`; });
+    }
+    const { zipSync } = await import("fflate");
+    const archive = zipSync(files, { level: 6 });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([archive], { type: "application/zip" }));
+    link.download = "MUC-Reperage-Equipements-PDF.zip"; link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    status.textContent = "7 PDF générés : quatre pages par fichier, du R+2 au R+5.";
+  } catch (error) {
+    status.textContent = `Export impossible : ${error.message}`;
+  } finally { button.disabled = false; }
 }
 
 function initialize() {
@@ -270,6 +429,7 @@ function initialize() {
     selectedRoom = Number(target.dataset.room);
     render(modelCache.get(selectedFloor));
   });
+  document.querySelector("#exportEquipmentPdfs").addEventListener("click", () => { void exportEquipmentPdfs(); });
 }
 
 export async function openEquipmentMap(definition) {
