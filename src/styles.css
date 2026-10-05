@@ -898,6 +898,7 @@ body img.brand-mark { width:64px; height:54px; object-fit:contain; background:tr
 .equipment-architecture path { fill:none; stroke:#808984; stroke-width:.48; vector-effect:non-scaling-stroke; opacity:.68; }
 .equipment-room { fill:var(--equipment-color); fill-opacity:.58; stroke:color-mix(in srgb,var(--equipment-color),#14271e 34%); stroke-width:1.15; vector-effect:non-scaling-stroke; cursor:pointer; transition:fill-opacity .15s; }
 .equipment-room.undefined { fill-opacity:.9; stroke:#b9002c; stroke-width:1.8; }
+.equipment-room.unavailable { fill-opacity:.66; stroke:#656d69; stroke-dasharray:4 2; }
 .equipment-room:hover,.equipment-room.selected { fill-opacity:.82; stroke:#162d21; stroke-width:2.4; }
 .equipment-room.filtered-out,.equipment-room-label.filtered-out { opacity:.06; pointer-events:none; }
 .equipment-room-label { fill:#14231c; font-family:Arial,sans-serif; font-weight:800; paint-order:stroke; stroke:#fff; stroke-width:.12; pointer-events:none; }

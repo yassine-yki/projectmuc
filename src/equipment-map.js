@@ -127,6 +127,11 @@ function roomCategory(roomNumber) {
   return ROOMS_BY_FLOOR[selectedFloor]?.find((room) => room.number === roomNumber)?.roomType || "standard";
 }
 
+function equipmentUnavailable(roomNumber) {
+  const category = roomCategory(roomNumber);
+  return category === "executive" || (selectedEquipment === "vanity" && category === "standard");
+}
+
 function roomVisible(roomNumber, record) {
   if (selectedCategory !== "all" && roomCategory(roomNumber) !== selectedCategory) return false;
   return !selectedTip || record?.tipExcel === selectedTip;
@@ -138,13 +143,15 @@ function renderDetail(room) {
   const record = equipmentRecord(selectedEquipment, room);
   const defined = equipmentIsDefined(record);
   const category = roomCategory(room);
+  const unavailable = equipmentUnavailable(room);
+  const unavailableLabel = category === "executive" ? "Non prévu dans les tableaux fournis" : "Indisponible pour les chambres Standard";
   container.innerHTML = `<span class="eyebrow">Chambre sélectionnée</span><h3>Chambre ${room}</h3>
-    <dl><div><dt>Type</dt><dd>${category === "executive" ? "Executive" : escapeText(record?.roomType || category)}</dd></div><div><dt>Typologie</dt><dd>${escapeText(record?.typology || "Non renseignée")}</dd></div><div><dt>PRODUCT CODE</dt><dd>${escapeText(record?.productCode || "Non défini")}</dd></div><div><dt>TIP EXCEL</dt><dd class="${defined || category === "executive" ? "" : "undefined"}">${category === "executive" ? "Non prévu dans les tableaux fournis" : escapeText(record?.tipExcel || "Non défini")}</dd></div></dl>`;
+    <dl><div><dt>Type</dt><dd>${category === "executive" ? "Executive" : escapeText(record?.roomType || category)}</dd></div><div><dt>Typologie</dt><dd>${escapeText(record?.typology || "Non renseignée")}</dd></div><div><dt>PRODUCT CODE</dt><dd>${unavailable ? "Indisponible" : escapeText(record?.productCode || "Non défini")}</dd></div><div><dt>TIP EXCEL</dt><dd class="${defined || unavailable ? "" : "undefined"}">${unavailable ? unavailableLabel : escapeText(record?.tipExcel || "Non défini")}</dd></div></dl>`;
 }
 
 function renderLegend(model, colors) {
   const categoryRooms = model.rooms.filter((room) => selectedCategory === "all" || roomCategory(room.number) === selectedCategory);
-  const visible = categoryRooms.filter((room) => roomCategory(room.number) !== "executive").map((room) => equipmentRecord(selectedEquipment, room.number));
+  const visible = categoryRooms.filter((room) => !equipmentUnavailable(room.number)).map((room) => equipmentRecord(selectedEquipment, room.number));
   const grouped = new Map();
   let undefinedCount = 0;
   for (const record of visible) {
@@ -156,10 +163,12 @@ function renderLegend(model, colors) {
   const groups = [...grouped.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([product, tips]) => `
     <section class="equipment-legend-group"><h3>${escapeText(product)}</h3>${[...tips.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([tip, count]) => `<button type="button" class="equipment-legend-item${selectedTip === tip ? " active" : ""}" data-equipment-tip="${escapeText(tip)}" aria-pressed="${selectedTip === tip}"><i style="--equipment-color:${colors.get(tip)}"></i><span>${escapeText(tip)}</span><strong>${count}</strong></button>`).join("")}</section>`).join("");
   const executiveCount = categoryRooms.filter((room) => roomCategory(room.number) === "executive").length;
+  const unavailableCount = categoryRooms.filter((room) => roomCategory(room.number) !== "executive" && equipmentUnavailable(room.number)).length;
   const reset = selectedTip ? `<button type="button" class="equipment-filter-reset" data-equipment-tip="">Afficher toutes les typologies</button>` : "";
   const undefinedGroup = undefinedCount ? `<section class="equipment-legend-group undefined"><h3>Données à compléter</h3><div class="equipment-legend-item static"><i style="--equipment-color:${UNDEFINED_COLOR}"></i><span>Non défini</span><strong>${undefinedCount}</strong></div></section>` : "";
   const executiveGroup = executiveCount ? `<section class="equipment-legend-group executive"><h3>Chambres Executive</h3><div class="equipment-legend-item static"><i style="--equipment-color:${EXECUTIVE_COLOR}"></i><span>Executive</span><strong>${executiveCount}</strong></div></section>` : "";
-  document.querySelector("#equipmentLegend").innerHTML = `${reset}${groups}${undefinedGroup}${executiveGroup}`;
+  const unavailableGroup = unavailableCount ? `<section class="equipment-legend-group executive"><h3>Équipement indisponible</h3><div class="equipment-legend-item static"><i style="--equipment-color:${EXECUTIVE_COLOR}"></i><span>Indisponible pour ce type de chambre</span><strong>${unavailableCount}</strong></div></section>` : "";
+  document.querySelector("#equipmentLegend").innerHTML = `${reset}${groups}${undefinedGroup}${unavailableGroup}${executiveGroup}`;
 }
 
 function ensurePlanStructure(model) {
@@ -189,10 +198,12 @@ function render(model) {
     const record = equipmentRecord(selectedEquipment, roomNumber);
     const defined = equipmentIsDefined(record);
     const category = roomCategory(roomNumber);
-    const color = category === "executive" ? EXECUTIVE_COLOR : defined ? colors.get(record.tipExcel) : UNDEFINED_COLOR;
-    const label = category === "executive" ? "Executive" : record?.tipExcel || "Non défini";
+    const unavailable = equipmentUnavailable(roomNumber);
+    const color = unavailable ? EXECUTIVE_COLOR : defined ? colors.get(record.tipExcel) : UNDEFINED_COLOR;
+    const label = category === "executive" ? "Executive" : unavailable ? "Indisponible" : record?.tipExcel || "Non défini";
     element.style.setProperty("--equipment-color", color);
-    element.classList.toggle("undefined", category !== "executive" && !defined);
+    element.classList.toggle("undefined", !unavailable && !defined);
+    element.classList.toggle("unavailable", unavailable);
     element.classList.toggle("selected", roomNumber === selectedRoom);
     element.classList.toggle("filtered-out", !roomVisible(roomNumber, record));
     const title = element.querySelector("title");
@@ -203,11 +214,12 @@ function render(model) {
     label.classList.toggle("filtered-out", !roomVisible(roomNumber, equipmentRecord(selectedEquipment, roomNumber)));
   });
   const scopedRooms = model.rooms.filter((room) => roomVisible(room.number, equipmentRecord(selectedEquipment, room.number)));
-  const undefinedCount = scopedRooms.filter((room) => roomCategory(room.number) !== "executive" && !equipmentIsDefined(equipmentRecord(selectedEquipment, room.number))).length;
+  const undefinedCount = scopedRooms.filter((room) => !equipmentUnavailable(room.number) && !equipmentIsDefined(equipmentRecord(selectedEquipment, room.number))).length;
+  const unavailableCount = scopedRooms.filter((room) => equipmentUnavailable(room.number)).length;
   const visibleTypeCount = new Set(scopedRooms.map((room) => equipmentRecord(selectedEquipment, room.number)).filter(equipmentIsDefined).map((record) => record.tipExcel)).size;
   const floor = projectDefinition.floors.find((item) => item.id === selectedFloor);
   document.querySelector("#equipmentPlanTitle").textContent = `${floor?.label || selectedFloor} · ${EQUIPMENT_LABELS[selectedEquipment]}`;
-  document.querySelector("#equipmentSummary").textContent = `${scopedRooms.length} chambres affichées · ${visibleTypeCount} TIP EXCEL · ${undefinedCount} non définie${undefinedCount > 1 ? "s" : ""}`;
+  document.querySelector("#equipmentSummary").textContent = `${scopedRooms.length} chambres affichées · ${visibleTypeCount} TIP EXCEL · ${undefinedCount} non définie${undefinedCount > 1 ? "s" : ""}${unavailableCount ? ` · ${unavailableCount} indisponible${unavailableCount > 1 ? "s" : ""}` : ""}`;
   document.querySelector("#equipmentPlanEmpty").hidden = true;
   renderLegend(model, colors);
   renderDetail(selectedRoom);
