@@ -1,0 +1,207 @@
+import { cleanDxfText, roomNumberFromText } from "./dxf-identification.js";
+import { EQUIPMENT_LABELS, EQUIPMENT_RECORDS, equipmentIsDefined, equipmentRecord } from "./equipment-data.js";
+
+const UNDEFINED_COLOR = "#d83a3a";
+let projectDefinition = null;
+let selectedFloor = "r2";
+let selectedEquipment = "headboard";
+let selectedRoom = null;
+let initialized = false;
+const modelCache = new Map();
+
+const layerName = (value) => String(value || "").trim().toUpperCase();
+const point = (entity) => entity.position || entity.startPoint || entity.vertices?.[0] || null;
+const numberValue = (value) => Number(value).toFixed(4).replace(/\.0+$/, "");
+const escapeText = (value) => String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+function isClosedPolygon(entity) {
+  if (!["LWPOLYLINE", "POLYLINE"].includes(entity.type) || entity.vertices?.length < 3) return false;
+  if (entity.shape) return true;
+  const first = entity.vertices[0];
+  const last = entity.vertices.at(-1);
+  return Math.hypot(first.x - last.x, first.y - last.y) < 0.1;
+}
+
+function pointInPolygon(target, vertices) {
+  let inside = false;
+  for (let index = 0, previous = vertices.length - 1; index < vertices.length; previous = index, index += 1) {
+    const current = vertices[index];
+    const prior = vertices[previous];
+    const crosses = (current.y > target.y) !== (prior.y > target.y)
+      && target.x < ((prior.x - current.x) * (target.y - current.y)) / (prior.y - current.y) + current.x;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+function boundsFromPoints(points) {
+  return {
+    minX: Math.min(...points.map((item) => item.x)), maxX: Math.max(...points.map((item) => item.x)),
+    minY: Math.min(...points.map((item) => item.y)), maxY: Math.max(...points.map((item) => item.y)),
+  };
+}
+
+function expanded(bounds, padding) {
+  return { minX: bounds.minX - padding, maxX: bounds.maxX + padding, minY: bounds.minY - padding, maxY: bounds.maxY + padding };
+}
+
+function pathFromPoints(points, close = false) {
+  if (!points?.length) return "";
+  return `M ${points.map((item) => `${numberValue(item.x)} ${numberValue(item.y)}`).join(" L ")}${close ? " Z" : ""}`;
+}
+
+function curvedPoints(entity) {
+  const start = entity.type === "CIRCLE" ? 0 : entity.startAngle || 0;
+  let length = entity.type === "CIRCLE" ? Math.PI * 2 : entity.angleLength;
+  if (!Number.isFinite(length) || length <= 0) length += Math.PI * 2;
+  const segments = Math.max(12, Math.ceil(Math.abs(length) / (Math.PI / 18)));
+  return Array.from({ length: segments + 1 }, (_, index) => {
+    const angle = start + length * index / segments;
+    return { x: entity.center.x + Math.cos(angle) * entity.radius, y: entity.center.y + Math.sin(angle) * entity.radius };
+  });
+}
+
+function entitySvg(entity, blocks, ancestors = []) {
+  if (entity.inPaperSpace) return "";
+  if (entity.type === "INSERT" || entity.type === "DIMENSION") {
+    const name = entity.type === "INSERT" ? entity.name : entity.block;
+    const block = blocks[name];
+    if (!block || ancestors.includes(name) || ancestors.length >= 8) return "";
+    const content = (block.entities || []).map((part) => entitySvg(part, blocks, [...ancestors, name])).join("");
+    if (!content) return "";
+    if (entity.type === "DIMENSION") return `<g>${content}</g>`;
+    const position = entity.position || { x: 0, y: 0 };
+    const base = block.position || { x: 0, y: 0 };
+    return `<g transform="translate(${numberValue(position.x)} ${numberValue(position.y)}) rotate(${numberValue(entity.rotation || 0)}) scale(${numberValue(entity.xScale || 1)} ${numberValue(entity.yScale || 1)}) translate(${numberValue(-base.x)} ${numberValue(-base.y)})">${content}</g>`;
+  }
+  if (entity.type === "LINE") return `<path d="${pathFromPoints(entity.vertices)}" />`;
+  if (["LWPOLYLINE", "POLYLINE"].includes(entity.type)) return `<path d="${pathFromPoints(entity.vertices, entity.shape)}" />`;
+  if (["ARC", "CIRCLE"].includes(entity.type) && entity.center) return `<path d="${pathFromPoints(curvedPoints(entity), entity.type === "CIRCLE")}" />`;
+  if (entity.type === "SPLINE" && entity.controlPoints?.length) return `<path d="${pathFromPoints(entity.controlPoints)}" />`;
+  return "";
+}
+
+function buildModel(dxf) {
+  const entities = (dxf.entities || []).filter((entity) => !entity.inPaperSpace);
+  const polygons = entities.filter((entity) => layerName(entity.layer) === "CHAMBRE" && isClosedPolygon(entity));
+  const texts = entities
+    .filter((entity) => layerName(entity.layer) === "A-AREA-IDEN" && ["TEXT", "MTEXT"].includes(entity.type))
+    .map((entity) => ({ location: point(entity), number: roomNumberFromText(cleanDxfText(entity.text)) }))
+    .filter((item) => item.location && item.number);
+  const uniqueTexts = [...new Map(texts.map((item) => [item.number, item])).values()].sort((a, b) => a.number - b.number);
+  if (!uniqueTexts.length) throw new Error("Aucun numéro de chambre trouvé dans le plan DXF.");
+  const textBounds = boundsFromPoints(uniqueTexts.map((item) => item.location));
+  const polygonPoints = polygons.flatMap((polygon) => polygon.vertices || []);
+  const baseBounds = polygonPoints.length ? boundsFromPoints(polygonPoints) : textBounds;
+  const padding = Math.max(2.5, Math.min(baseBounds.maxX - baseBounds.minX, baseBounds.maxY - baseBounds.minY) * 0.04);
+  const bounds = expanded(baseBounds, padding);
+  const rooms = uniqueTexts.map((item) => ({
+    number: item.number,
+    labelPoint: item.location,
+    polygon: polygons.find((polygon) => pointInPolygon(item.location, polygon.vertices))?.vertices || null,
+  }));
+  return { bounds, rooms, architecture: entities.map((entity) => entitySvg(entity, dxf.blocks || {})).join("") };
+}
+
+function colorMapFor(equipment) {
+  const tips = [...new Set(EQUIPMENT_RECORDS.filter((record) => record.equipment === equipment && equipmentIsDefined(record)).map((record) => record.tipExcel))].sort();
+  return new Map(tips.map((tip, index) => [tip, `hsl(${Math.round(index * 347.5 / Math.max(1, tips.length))} 64% 55%)`]));
+}
+
+function renderDetail(room) {
+  const container = document.querySelector("#equipmentRoomDetail");
+  if (!room) { container.innerHTML = "<strong>Sélectionnez une chambre sur le plan</strong>"; return; }
+  const record = equipmentRecord(selectedEquipment, room);
+  const defined = equipmentIsDefined(record);
+  container.innerHTML = `<span class="eyebrow">Chambre sélectionnée</span><h3>Chambre ${room}</h3>
+    <dl><div><dt>Type</dt><dd>${escapeText(record?.roomType || "Non renseigné")}</dd></div><div><dt>Typologie</dt><dd>${escapeText(record?.typology || "Non renseignée")}</dd></div><div><dt>PRODUCT CODE</dt><dd>${escapeText(record?.productCode || "Non défini")}</dd></div><div><dt>TIP EXCEL</dt><dd class="${defined ? "" : "undefined"}">${escapeText(record?.tipExcel || "Non défini")}</dd></div></dl>`;
+}
+
+function renderLegend(model, colors) {
+  const visible = model.rooms.map((room) => equipmentRecord(selectedEquipment, room.number));
+  const grouped = new Map();
+  let undefinedCount = 0;
+  for (const record of visible) {
+    if (!equipmentIsDefined(record)) { undefinedCount += 1; continue; }
+    if (!grouped.has(record.productCode)) grouped.set(record.productCode, new Map());
+    const tips = grouped.get(record.productCode);
+    tips.set(record.tipExcel, (tips.get(record.tipExcel) || 0) + 1);
+  }
+  const groups = [...grouped.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([product, tips]) => `
+    <section class="equipment-legend-group"><h3>${escapeText(product)}</h3>${[...tips.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([tip, count]) => `<div class="equipment-legend-item"><i style="--equipment-color:${colors.get(tip)}"></i><span>${escapeText(tip)}</span><strong>${count}</strong></div>`).join("")}</section>`).join("");
+  document.querySelector("#equipmentLegend").innerHTML = `${groups}<section class="equipment-legend-group undefined"><h3>Données à compléter</h3><div class="equipment-legend-item"><i style="--equipment-color:${UNDEFINED_COLOR}"></i><span>Non défini</span><strong>${undefinedCount}</strong></div></section>`;
+}
+
+function render(model) {
+  const svg = document.querySelector("#equipmentPlan");
+  const colors = colorMapFor(selectedEquipment);
+  const width = model.bounds.maxX - model.bounds.minX;
+  const height = model.bounds.maxY - model.bounds.minY;
+  const labelSize = Math.max(0.34, Math.min(0.58, height * 0.012));
+  svg.setAttribute("viewBox", `${numberValue(model.bounds.minX)} ${numberValue(-model.bounds.maxY)} ${numberValue(width)} ${numberValue(height)}`);
+  const roomShapes = model.rooms.map((room) => {
+    const record = equipmentRecord(selectedEquipment, room.number);
+    const defined = equipmentIsDefined(record);
+    const color = defined ? colors.get(record.tipExcel) : UNDEFINED_COLOR;
+    const selected = room.number === selectedRoom ? " selected" : "";
+    if (room.polygon) return `<path class="equipment-room${selected}" data-room="${room.number}" style="--equipment-color:${color}" d="${pathFromPoints(room.polygon, true)}"><title>Chambre ${room.number} · ${escapeText(record?.tipExcel || "Non défini")}</title></path>`;
+    return `<circle class="equipment-room equipment-room-marker${selected}" data-room="${room.number}" style="--equipment-color:${color}" cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}"><title>Chambre ${room.number} · ${escapeText(record?.tipExcel || "Non défini")}</title></circle>`;
+  }).join("");
+  const labels = model.rooms.map((room) => `<text class="equipment-room-label" x="${numberValue(room.labelPoint.x)}" y="${numberValue(-room.labelPoint.y)}" font-size="${numberValue(labelSize)}" text-anchor="middle">${room.number}</text>`).join("");
+  svg.innerHTML = `<g transform="scale(1 -1)">${roomShapes}</g><g class="equipment-architecture" transform="scale(1 -1)">${model.architecture}</g><g>${labels}</g>`;
+  const undefinedCount = model.rooms.filter((room) => !equipmentIsDefined(equipmentRecord(selectedEquipment, room.number))).length;
+  const visibleTypeCount = new Set(model.rooms.map((room) => equipmentRecord(selectedEquipment, room.number)).filter(equipmentIsDefined).map((record) => record.tipExcel)).size;
+  const floor = projectDefinition.floors.find((item) => item.id === selectedFloor);
+  document.querySelector("#equipmentPlanTitle").textContent = `${floor?.label || selectedFloor} · ${EQUIPMENT_LABELS[selectedEquipment]}`;
+  document.querySelector("#equipmentSummary").textContent = `${model.rooms.length} chambres · ${visibleTypeCount} TIP EXCEL · ${undefinedCount} non définie${undefinedCount > 1 ? "s" : ""}`;
+  document.querySelector("#equipmentPlanEmpty").hidden = true;
+  renderLegend(model, colors);
+  renderDetail(selectedRoom);
+}
+
+async function loadFloor() {
+  const empty = document.querySelector("#equipmentPlanEmpty");
+  empty.hidden = false;
+  empty.textContent = "Chargement du plan…";
+  const floor = projectDefinition.floors.find((item) => item.id === selectedFloor);
+  if (!floor?.dxfPath) { empty.textContent = "Aucun plan DXF disponible pour cet étage."; return; }
+  try {
+    if (!modelCache.has(floor.id)) {
+      const response = await fetch(`${floor.dxfPath}?v=${encodeURIComponent(floor.updatedAt || "equipment")}`);
+      if (!response.ok) throw new Error(`Plan introuvable (${response.status})`);
+      const source = await response.text();
+      const Parser = window.DxfParser;
+      if (!Parser) throw new Error("Le lecteur DXF n’est pas disponible.");
+      modelCache.set(floor.id, buildModel(new Parser().parseSync(source)));
+    }
+    selectedRoom = null;
+    render(modelCache.get(floor.id));
+  } catch (error) {
+    empty.textContent = `Impossible d’ouvrir le plan : ${error.message}`;
+    document.querySelector("#equipmentPlan").innerHTML = "";
+  }
+}
+
+function initialize() {
+  if (initialized) return;
+  initialized = true;
+  document.querySelector("#equipmentFloorSelect").addEventListener("change", (event) => { selectedFloor = event.target.value; void loadFloor(); });
+  document.querySelector("#equipmentKindSelect").addEventListener("change", (event) => { selectedEquipment = event.target.value; selectedRoom = null; const model = modelCache.get(selectedFloor); if (model) render(model); });
+  document.querySelector("#equipmentPlan").addEventListener("click", (event) => {
+    const target = event.target.closest("[data-room]");
+    if (!target) return;
+    selectedRoom = Number(target.dataset.room);
+    render(modelCache.get(selectedFloor));
+  });
+}
+
+export async function openEquipmentMap(definition) {
+  projectDefinition = definition;
+  initialize();
+  const select = document.querySelector("#equipmentFloorSelect");
+  select.innerHTML = definition.floors.map((floor) => `<option value="${floor.id}">${escapeText(floor.label)}</option>`).join("");
+  if (!definition.floors.some((floor) => floor.id === selectedFloor)) selectedFloor = definition.floors[0]?.id || "r2";
+  select.value = selectedFloor;
+  document.querySelector("#equipmentKindSelect").value = selectedEquipment;
+  await loadFloor();
+}

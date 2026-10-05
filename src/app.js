@@ -10,6 +10,7 @@ import { editable } from "./cloud/types.js";
 import { openProjectPhotos, openTaskPhotos } from "./task-photos.js";
 import { openBoh } from "./boh.js";
 import { openDxfWorkshop } from "./dxf-workshop.js";
+import { openEquipmentMap } from "./equipment-map.js";
 import { findPinnedTask } from "./task-pin.js";
 
 
@@ -1126,9 +1127,10 @@ elements.projectDialog.addEventListener("cancel", (event) => {
 
 function renderAccessShell() {
   const admin = currentUser?.role === "admin";
-  const roomsMode=trackingMode==="rooms",bohMode=trackingMode==="boh",workshopMode=trackingMode==="workshop";
+  const roomsMode=trackingMode==="rooms",equipmentMode=trackingMode==="equipment",bohMode=trackingMode==="boh",workshopMode=trackingMode==="workshop";
   document.body.dataset.role = localMode ? "viewer" : !accessReady ? "signed-out" : currentUser?.role || "signed-out";
   document.querySelector("#mainWorkspace").hidden = !accessReady || !roomsMode || (!localMode && admin && adminPage !== "dashboard");
+  document.querySelector("#equipmentWorkspace").hidden = !accessReady || !equipmentMode;
   document.querySelector("#bohWorkspace").hidden = !accessReady || !bohMode;
   document.querySelector("#dxfWorkshop").hidden = !accessReady || !workshopMode || !admin || localMode;
   document.querySelector("#adminNavigation").hidden = !accessReady || !roomsMode || !admin || localMode;
@@ -1887,6 +1889,10 @@ async function activateTrackingMode(mode) {
   if(mode==="rooms") {
     elements.projectSubtitle.textContent=activeProjectDefinition.name+" — "+(floorDefinition()?.label || state.selectedFloor);
     await loadConfiguredPlan(activeProjectDefinition);requestAnimationFrame(fitPlan);
+  } else if(mode==="equipment") {
+    elements.projectSubtitle.textContent=activeProjectDefinition.name+" — Repérage des équipements";
+    showAppLoading("Chargement du repérage des équipements…");
+    try{await openEquipmentMap(activeProjectDefinition);}finally{hideAppLoading();}
   } else if(mode==="boh") {
     elements.projectSubtitle.textContent=activeProjectDefinition.name+" — BOH Carrelage";
     showAppLoading("Chargement du suivi BOH…");

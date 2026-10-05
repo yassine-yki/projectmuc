@@ -41,7 +41,7 @@
     </dialog>
     <dialog class="project-dialog tracking-mode-dialog" id="trackingModeDialog" aria-labelledby="trackingModeTitle">
       <div class="project-dialog-header"><span class="eyebrow">Projet MUC</span><h2 id="trackingModeTitle">Quel outil voulez-vous ouvrir ?</h2><p>Les suivis et la préparation des plans restent séparés dans le même projet.</p></div>
-      <div class="tracking-mode-list"><button type="button" data-tracking-mode="rooms"><strong>Suivi des chambres</strong><span>Chambres, salles de bain, tâches et plans DXF du R+2 au R+5.</span></button><button type="button" data-tracking-mode="boh"><strong>BOH - Carrelage</strong><span>Avancement des revêtements de sol par finition et par étage, du SS-2 au N06.</span></button><button type="button" data-tracking-mode="workshop" data-admin-only><strong>Préparer un plan AutoCAD</strong><span>Délimiter les espaces par polylignes fermées et créer les calques de la légende.</span></button></div>
+      <div class="tracking-mode-list"><button type="button" data-tracking-mode="rooms"><strong>Suivi des chambres</strong><span>Chambres, salles de bain, tâches et plans DXF du R+2 au R+5.</span></button><button type="button" data-tracking-mode="equipment"><strong>Repérage des équipements</strong><span>Headboard, armoire, bar et vanity par TIP EXCEL, sur les plans du R+2 au R+5.</span></button><button type="button" data-tracking-mode="boh"><strong>BOH - Carrelage</strong><span>Avancement des revêtements de sol par finition et par étage, du SS-2 au N06.</span></button><button type="button" data-tracking-mode="workshop" data-admin-only><strong>Préparer un plan AutoCAD</strong><span>Délimiter les espaces par polylignes fermées et créer les calques de la légende.</span></button></div>
     </dialog>
 
     <header class="topbar">
@@ -224,6 +224,24 @@
             <textarea id="noteInput" rows="3" placeholder="Ex. attente de validation, manque de matériau..."></textarea>
           </label>
         </section>
+      </aside>
+    </main>
+    <main id="equipmentWorkspace" class="equipment-shell" hidden>
+      <section class="equipment-plan-column">
+        <div class="equipment-toolbar">
+          <label class="field"><span>Étage</span><select id="equipmentFloorSelect"></select></label>
+          <label class="field"><span>Équipement</span><select id="equipmentKindSelect"><option value="headboard">Headboard</option><option value="wardrobe">Armoire</option><option value="bar">Bar</option><option value="vanity">Vanity</option></select></label>
+          <div class="equipment-heading"><span class="eyebrow">Plan de repérage</span><h2 id="equipmentPlanTitle">Équipements des chambres</h2><p id="equipmentSummary"></p></div>
+        </div>
+        <div class="equipment-plan-viewport">
+          <svg id="equipmentPlan" aria-label="Plan de repérage des équipements"></svg>
+          <div id="equipmentPlanEmpty" class="plan-empty">Chargement du plan…</div>
+        </div>
+      </section>
+      <aside class="equipment-legend-panel">
+        <div class="page-heading"><span class="eyebrow">Légende Excel</span><h2>PRODUCT CODE / TIP EXCEL</h2><p>Chaque TIP EXCEL possède sa couleur. Le rouge indique une donnée non définie.</p></div>
+        <div id="equipmentRoomDetail" class="equipment-room-detail"><strong>Sélectionnez une chambre sur le plan</strong></div>
+        <div id="equipmentLegend" class="equipment-legend"></div>
       </aside>
     </main>
     <main id="bohWorkspace" class="boh-shell" hidden>

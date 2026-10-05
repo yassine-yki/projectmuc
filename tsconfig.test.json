@@ -15,6 +15,7 @@
     "src/storage.ts",
     "src/dxf-identification.ts",
     "src/dxf-workshop.ts",
+    "src/equipment-data.ts",
     "src/task-pin.ts",
     "src/repositories/**/*.ts",
     "tests/**/*.ts"
