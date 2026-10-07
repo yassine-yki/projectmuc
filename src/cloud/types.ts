@@ -10,6 +10,9 @@ export type Snapshot = {
   taskTypes?: {id:string;code:string;zone:string;label:string;group_label?:string;source_column?:string;sort_order?:number;hidden?:boolean;hidden_user_ids?:string[]}[];
   tasks: CloudTask[]; assignments: Assignment[]; members: Member[]; cachedAt: string;
 };
+export function trackingTypeVisible(type: {hidden?: boolean; hidden_user_ids?: string[]}, userId: string): boolean {
+  return !type.hidden && !(type.hidden_user_ids || []).includes(userId);
+}
 export type Payload = {
   progress: number; blocked: boolean; note: string; start_date: string | null; end_date: string | null;
   correction_reason?: string; correction_note?: string;

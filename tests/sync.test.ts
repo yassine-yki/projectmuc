@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import "fake-indexeddb/auto";
 import { OfflineStore } from "../src/cloud/offline-store.js";
 import { SyncEngine } from "../src/cloud/sync.js";
-import { editable, type Snapshot, type Receipt } from "../src/cloud/types.js";
+import { editable, trackingTypeVisible, type Snapshot, type Receipt } from "../src/cloud/types.js";
+
+test("OFF hides tracking for every role even when a cached task type remains readable", () => {
+  assert.equal(trackingTypeVisible({hidden:true},"admin"),false);
+  assert.equal(trackingTypeVisible({hidden:true},"worker"),false);
+  assert.equal(trackingTypeVisible({hidden:false,hidden_user_ids:["admin"]},"admin"),false);
+  assert.equal(trackingTypeVisible({hidden:false,hidden_user_ids:["admin"]},"worker"),true);
+});
 const record=(progress=0)=>({progress,blocked:false,note:"",startDate:"",endDate:""});
 const snapshot=():Snapshot=>({projectId:"p",name:"Projet",userId:"alice",role:"worker",cachedAt:new Date().toISOString(),
   tasks:[{id:"t1",key:"201:bedroom:paint",version:2,record:record(),active:true},

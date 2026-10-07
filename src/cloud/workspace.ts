@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient, type User } from "@supabase/supabase
 import { CURRENT_FLOOR, emptyProject, taskApplicable } from "../model.js";
 import { OfflineStore } from "./offline-store.js";
 import { SyncEngine } from "./sync.js";
-import type { Snapshot, CloudTask, Operation, Receipt, Member } from "./types.js";
+import { trackingTypeVisible, type Snapshot, type CloudTask, type Operation, type Receipt, type Member } from "./types.js";
 
 const env = (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env || {};
 const url = env.VITE_SUPABASE_URL || "";
@@ -95,6 +95,7 @@ export class CloudWorkspace {
     ]);
     const profileById=new Map(profiles.map((profile:any)=>[profile.id,profile]));
     const roomById=new Map(rooms.map(room=>[room.id,room]));
+    const visibleTypes=types.filter(type=>trackingTypeVisible(type,this.user.id));
     const typeById=new Map(types.map(type=>[type.id,type]));
     const floorById=new Map(floors.map(floor=>[floor.id,floor]));
     const blockById=new Map(blocks.map(block=>[block.id,block]));
@@ -104,12 +105,12 @@ export class CloudWorkspace {
       const floor=floorById.get(room?.floor_id), block=blockById.get(room?.block_id);
       if (!room || !type || !floor) return [];
       return [{ id:t.id,floorCode:floor.code,key:room.number+":"+type.zone+":"+type.code,version:Number(t.version),
-        active:taskApplicable(room.room_type || "standard",type.zone,type.code)
+        active:trackingTypeVisible(type,this.user.id) && taskApplicable(room.room_type || "standard",type.zone,type.code)
           && ![project.archived_at,t.archived_at,room.archived_at,type.archived_at,floor.archived_at,block?.archived_at].some(Boolean),
         record:{confirmedDay:t.confirmed_day,confirmedProgress:t.progress,lockedProgress:t.locked_progress??t.progress,progress:t.progress,blocked:t.blocked,note:t.note,startDate:t.start_date||"",endDate:t.end_date||""} }];
     });
     // RLS and the RPC remain authoritative; this snapshot is only a UI/cache view.
-    const snapshot: Snapshot = {projectId,name:project.name,userId:this.user.id,role:own.role,tasks:cloudTasks,taskTypes:types,
+    const snapshot: Snapshot = {projectId,name:project.name,userId:this.user.id,role:own.role,tasks:cloudTasks,taskTypes:visibleTypes,
       assignments:assignments.filter(a=>!a.ended_at),members,cachedAt:new Date().toISOString()};
     await this.store.saveSnapshot(snapshot);
     this.snapshot=snapshot;

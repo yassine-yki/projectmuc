@@ -6,7 +6,7 @@ import { PROJECT_CATALOG } from "./project-catalog.js";
 import { downloadProgressWorkbook } from "./excel-export.js";
 import { dailyProgressLines, downloadDailyProgressPdfs } from "./pdf-export.js";
 import { cloudConfigured, login, logout, restoreWorkspace, acceptInvitation } from "./cloud/workspace.js";
-import { editable } from "./cloud/types.js";
+import { editable, trackingTypeVisible } from "./cloud/types.js";
 import { openProjectPhotos, openTaskPhotos } from "./task-photos.js";
 import { findPinnedTask } from "./task-pin.js";
 
@@ -500,7 +500,7 @@ function currentTasks(zone=state.selectedZone) {
   const base=tasksByZone[zone];
   if(localMode || !cloud?.snapshot?.taskTypes) return base;
   return base.flatMap(task=>{
-    const type=cloud.snapshot.taskTypes.find(t=>t.zone===zone && t.code===task.id);
+    const type=cloud.snapshot.taskTypes.find(t=>t.zone===zone && t.code===task.id && trackingTypeVisible(t,currentUser?.id || cloud.snapshot.userId));
     return type ? [{...task,label:type.label}] : [];
   });
 }
@@ -1746,7 +1746,7 @@ function filterTaskManagement() {
     let visibleCount=0;
     group.querySelectorAll('.management-task').forEach(task=>{
       const form=task.querySelector('.task-management-form');
-      const hidden=form.elements.hidden.checked;
+      const hidden=form.querySelector('[name="hidden"]').checked;
       const personal=!!form.querySelector('[name="hiddenUser"]:checked');
       const label=form.elements.label.value.toLocaleLowerCase('fr');
       const matchesSearch=!search||groupMatches||label.includes(search);
@@ -1764,7 +1764,7 @@ document.querySelector("#taskManagementList").addEventListener("submit",async ev
   const button=form.querySelector("button");const status=form.querySelector('[role="status"]');
   button.disabled=true;status.textContent="Enregistrement…";
   try{
-    await cloud.manageTaskType(form.dataset.typeId,form.elements.label.value,form.elements.hidden.checked,[...form.querySelectorAll('[name="hiddenUser"]:checked')].map(input=>input.value));
+    await cloud.manageTaskType(form.dataset.typeId,form.elements.label.value,form.querySelector('[name="visibility"][value="off"]').checked,[...form.querySelectorAll('[name="hiddenUser"]:checked')].map(input=>input.value));
     status.textContent="Modifications enregistrées.";
 
     updateManagementGroup(form.closest(".management-group"));filterTaskManagement();render();
@@ -1774,26 +1774,27 @@ document.querySelector("#taskManagementList").addEventListener("submit",async ev
 function updateManagementGroup(group) {
   const forms=[...group.querySelectorAll('.task-management-form')];
   const set=(control,values)=>{control.checked=values.every(Boolean);control.indeterminate=values.some(Boolean)&&!control.checked;};
-  set(group.querySelector('[data-group-hidden]'),forms.map(f=>f.elements.hidden.checked));
+  set(group.querySelector('[data-group-hidden]'),forms.map(f=>f.querySelector('[name="hidden"]').checked));
   group.querySelectorAll('[data-group-user]').forEach(control=>set(control,forms.map(f=>[...f.querySelectorAll('[name="hiddenUser"]')].find(input=>input.value===control.dataset.groupUser)?.checked)));
   forms.forEach(f=>{
     const personal=f.querySelectorAll('[name="hiddenUser"]:checked').length;
-    f.querySelector('[name="visibility"][value="on"]').checked=!f.elements.hidden.checked;
-    f.querySelector('[name="visibility"][value="off"]').checked=f.elements.hidden.checked;
+    const hidden=f.querySelector('[name="hidden"]').checked;
+    f.querySelector('[name="visibility"][value="on"]').checked=!hidden;
+    f.querySelector('[name="visibility"][value="off"]').checked=hidden;
     f.querySelector('[data-hidden-user-count]').textContent=personal;
-    f.querySelector('[data-task-visibility]').textContent=f.elements.hidden.checked?'Masquée pour le projet':personal?'Masquée pour '+personal+' personne'+(personal>1?'s':''):'Visible';
+    f.querySelector('[data-task-visibility]').textContent=hidden?'Masquée pour le projet':personal?'Masquée pour '+personal+' personne'+(personal>1?'s':''):'Visible';
   });
-  const hidden=forms.filter(f=>f.elements.hidden.checked).length;
+  const hidden=forms.filter(f=>f.querySelector('[name="hidden"]').checked).length;
   const personal=forms.filter(f=>f.querySelector('[name="hiddenUser"]:checked')).length;
   group.querySelector('[data-group-summary]').textContent=forms.length+' tâche'+(forms.length>1?'s':'')+(hidden?' · '+hidden+' OFF':'')+(personal?' · '+personal+' ciblée'+(personal>1?'s':''):'');
 }
 document.querySelector('#taskManagementList').addEventListener('change',event=>{
   const group=event.target.closest('.management-group');if(!group)return;
-  if(event.target.matches('[name="visibility"]')) event.target.closest('form').elements.hidden.checked=event.target.value==='off';
+  if(event.target.matches('[name="visibility"]')) event.target.closest('form').querySelector('[name="hidden"]').checked=event.target.value==='off';
   const groupChange=event.target.matches('[data-group-hidden],[data-group-user]');
   if(groupChange) {
     group.querySelectorAll('.task-management-form').forEach(form=>{
-      const input=event.target.matches('[data-group-hidden]')?form.elements.hidden:[...form.querySelectorAll('[name="hiddenUser"]')].find(input=>input.value===event.target.dataset.groupUser);
+      const input=event.target.matches('[data-group-hidden]')?form.querySelector('[name="hidden"]'):[...form.querySelectorAll('[name="hiddenUser"]')].find(input=>input.value===event.target.dataset.groupUser);
       if(input)input.checked=event.target.checked;
     });
   }
@@ -1842,7 +1843,7 @@ document.querySelector('#taskManagementList').addEventListener('click',async eve
     }
     for(const form of group.querySelectorAll('.task-management-form')) {
       status.textContent='Enregistrement du groupe…';
-      await cloud.manageTaskType(form.dataset.typeId,form.elements.label.value,form.elements.hidden.checked,[...form.querySelectorAll('[name="hiddenUser"]:checked')].map(i=>i.value));
+      await cloud.manageTaskType(form.dataset.typeId,form.elements.label.value,form.querySelector('[name="visibility"][value="off"]').checked,[...form.querySelectorAll('[name="hiddenUser"]:checked')].map(i=>i.value));
 
       saved++;
     }
