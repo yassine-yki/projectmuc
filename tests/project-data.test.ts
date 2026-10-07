@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { R2_BLOCKS, R2_ROOMS, ROOMS_BY_FLOOR } from "../src/project-data.js";
-import { taskApplicable, tasksByZone } from "../src/model.js";
+import { taskApplicable, taskGroup, tasksByZone } from "../src/model.js";
+
+test("aquapanel replacement is a separate bedroom task in Cloisons",()=>{
+  const tasks=tasksByZone.bedroom;
+  assert.deepEqual(tasks.slice(0,2).map(task=>task.label),["Cloisons chambre","Changement d’aquapanel"]);
+  assert.equal(taskGroup("bedroom",tasks[1].sourceColumn),"Cloisons");
+});
 
 test("BENTHAMI dressage is separate and does not apply to suites",()=>{
   assert.deepEqual(tasksByZone.bathroom.filter(task=>task.id.startsWith("wall-render")).map(task=>task.label),[

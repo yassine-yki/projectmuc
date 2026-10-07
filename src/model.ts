@@ -64,6 +64,7 @@ export const tasksByZone = {
   ],
   bedroom: [
     { id: "partitions", label: "Cloisons chambre", sourceColumn: "AN" },
+    { id: "aquapanel-replacement", label: "Changement d’aquapanel", sourceColumn: "AN_A" },
     { id: "electrical-rough-in", label: "Passage électricité cloisons", sourceColumn: "AO" },
     { id: "electrical-plaster-clearance", label: "Bon à enduire électricité cloisons", sourceColumn: "AP" },
     { id: "caulking", label: "Calfeutrement", sourceColumn: "AQ" },
@@ -123,7 +124,7 @@ const taskGroupRanges: Record<ZoneId, { label: string; columns: string[] }[]> = 
     { label: "Réception", columns: ["AL", "AM"] },
   ],
   bedroom: [
-    { label: "Cloisons", columns: ["AN"] },
+    { label: "Cloisons", columns: ["AN", "AN_A"] },
     { label: "Électricité cloisons", columns: ["AO", "AP", "AQ"] },
     { label: "Chape", columns: ["AR"] },
     { label: "Faux plafond chambre", columns: ["AS", "AT", "AU", "AV", "AW", "AX", "AY", "AZ"] },

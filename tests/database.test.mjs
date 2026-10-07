@@ -607,6 +607,43 @@ test('PISTACHE schema, RLS and transactional RPCs', async (t) => {
   await login(worker);
   assert.equal((await first('select progress from public.room_tasks where id=$1',[task])).progress,42);
  });
+
+ await t.test('Aquapanel replacement is separate in every bedroom and inherits current responsibility',async()=>{
+  await db.exec('reset role');
+  const p=(await first("select project_id from public.task_types where zone='bedroom' and code='partitions' order by created_at limit 1")).project_id;
+  const parent=(await first(`select rt.id from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id join public.rooms r on r.id=rt.room_id
+    where rt.project_id=$1 and tt.zone='bedroom' and tt.code='partitions' and r.number='201'`,[p])).id;
+  await query('update public.room_tasks set progress=61 where id=$1',[parent]);
+  await login(admin);
+  await query('select public.set_project_member($1,$2,$3,$4)',[p,worker,'worker','active']);
+  await query('select public.assign_task($1,$2,$3)',[parent,worker,'Existing partitions assignment']);
+  await db.exec('reset role');
+  await query("select set_config('request.jwt.claim.sub','',false)");
+  const migration=await readFile(new URL('../supabase/migrations/0026_aquapanel_replacement.sql',import.meta.url),'utf8');
+  await db.exec(migration);
+  assert.equal((await first('select progress from public.room_tasks where id=$1',[parent])).progress,61);
+  const aquapanel=await first(`select rt.id,rt.progress,tt.label,tt.group_label from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id join public.rooms r on r.id=rt.room_id
+    where rt.project_id=$1 and tt.zone='bedroom' and tt.code='aquapanel-replacement' and r.number='201'`,[p]);
+  assert.equal(aquapanel.progress,0);
+  assert.equal(aquapanel.label,'Changement d’aquapanel');
+  assert.equal(aquapanel.group_label,'Cloisons');
+  assert.equal((await first('select assignee_id from public.task_assignments where room_task_id=$1 and ended_at is null',[aquapanel.id])).assignee_id,worker);
+  const totals=await first(`select count(*)::int total from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id
+    where rt.project_id=$1 and tt.code='aquapanel-replacement'`,[p]);
+  assert.equal(totals.total,(await first('select count(*)::int total from public.rooms where project_id=$1',[p])).total);
+  await db.exec(migration);
+  assert.equal((await first("select count(*)::int total from public.task_types where project_id=$1 and code='aquapanel-replacement'",[p])).total,1);
+  assert.equal((await first('select count(*)::int total from public.task_assignments where room_task_id=$1 and ended_at is null',[aquapanel.id])).total,1);
+  await login(admin);
+  const future=(await first('select public.create_mixed_use_project() id')).id;
+  assert.equal((await first("select count(*)::int total from public.task_types where project_id=$1 and code='aquapanel-replacement'",[future])).total,1);
+  assert.equal((await first(`select count(*)::int total from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id
+    where rt.project_id=$1 and tt.code='aquapanel-replacement'`,[future])).total,129);
+ });
  });
 
 
