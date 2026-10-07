@@ -4,7 +4,7 @@ import { tasksByZone, type ProgressRecord } from "./model.js";
 const TEMPLATE_PATH = "/mixed-use-avancement-template.xlsx";
 const TRACKING_SHEET = "xl/worksheets/sheet2.xml";
 const GRAPH_SHEETS = ["xl/worksheets/sheet3.xml", "xl/worksheets/sheet4.xml"];
-const allTaskColumns = Object.values(tasksByZone).flatMap(tasks => tasks.map(task => task.sourceColumn));
+const allTaskColumns = Object.values(tasksByZone).flatMap(tasks => tasks.map(task => task.sourceColumn)).filter(column => /^[A-Z]+$/.test(column));
 
 export type ExcelProgressTask = { key: string; active: boolean; record: ProgressRecord };
 export type ExcelExportOptions = { visibleColumns?: Iterable<string>; date?: Date };
@@ -203,7 +203,7 @@ export function buildProgressWorkbook(template: Uint8Array, tasks: ExcelProgress
     const [roomText,zone,code]=task.key.split(":");
     const row=rows.get(Number(roomText));
     const definition=tasksByZone[zone as keyof typeof tasksByZone]?.find(item=>item.id===code);
-    if(!row || !definition) continue;
+    if(!row || !definition || !allTaskColumns.includes(definition.sourceColumn)) continue;
     values.set(`${definition.sourceColumn}${row}`,Math.max(0,Math.min(100,task.record.progress))/100);
   }
   sheet=setNumericCells(sheet,values);

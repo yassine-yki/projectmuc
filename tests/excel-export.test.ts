@@ -55,3 +55,13 @@ test("Excel export removes graph blocks for hidden tasks and recalculates partia
   assert.match(bedroom,/SUM\('Suivi des Chambres'!BA5:BA44\)/);
   assert.doesNotMatch(bedroom,/<c\b[^>]*\br="I21"/); // Réception is hidden / invalid in the source workbook.
 });
+
+test("the legacy Dressage Excel column keeps NOUR INOV progress",async()=>{
+  const template=new Uint8Array(await readFile(join(process.cwd(),"public","mixed-use-avancement-template.xlsx")));
+  const record=(progress:number)=>({progress,blocked:false,note:"",startDate:"",endDate:""});
+  const output=unzipSync(buildProgressWorkbook(template,[
+    {key:"201:bathroom:wall-render",active:true,record:record(35)},
+    {key:"201:bathroom:wall-render-benthami",active:true,record:record(80)},
+  ]));
+  assert.equal(numericCell(strFromU8(output["xl/worksheets/sheet2.xml"]),"O5"),0.35);
+});

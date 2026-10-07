@@ -527,6 +527,55 @@ test('PISTACHE schema, RLS and transactional RPCs', async (t) => {
   assert.equal((await query("select name from storage.objects where name=$1",[path])).length,0);
   assert.equal((await first('select private.can_add_task_photo($1) allowed',[task])).allowed,false);
  });
+
+ await t.test('wall rendering has independent contractors, excludes suites and lists hidden tasks for admins',async()=>{
+  await db.exec('reset role');
+  const p=(await first("select project_id from public.task_types where zone='bathroom' and code='wall-render' order by created_at limit 1")).project_id;
+  const original=(await first(`select rt.id,rt.progress from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id join public.rooms r on r.id=rt.room_id
+    where rt.project_id=$1 and tt.code='wall-render' and r.number='201'`,[p])).id;
+  await query('update public.room_tasks set progress=37 where id=$1',[original]);
+  await login(admin);
+  await query('select public.set_project_member($1,$2,$3,$4)',[p,worker,'worker','active']);
+  await query('select public.assign_task($1,$2,$3)',[original,worker,'Existing area assignment']);
+  await db.exec('reset role');
+  await query("update public.task_types set hidden_user_ids=$2 where project_id=$1 and code='wall-render'",[p,[admin]]);
+  await query("select set_config('request.jwt.claim.sub','',false)");
+  const migration=await readFile(new URL('../supabase/migrations/0024_wall_render_contractors.sql',import.meta.url),'utf8');
+  await db.exec(migration);
+  assert.equal((await first('select progress from public.room_tasks where id=$1',[original])).progress,37);
+  assert.equal((await first("select label from public.task_types where project_id=$1 and code='wall-render'",[p])).label,'Dressage mur — NOUR INOV');
+  const standard=await first(`select rt.id,rt.progress,rt.archived_at from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id join public.rooms r on r.id=rt.room_id
+    where rt.project_id=$1 and tt.code='wall-render-benthami' and r.number='201'`,[p]);
+  assert.equal(standard.progress,0);assert.equal(standard.archived_at,null);
+  assert.equal((await first('select assignee_id from public.task_assignments where room_task_id=$1 and ended_at is null',[standard.id])).assignee_id,worker);
+  assert.equal((await query(`select rt.id from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id join public.rooms r on r.id=rt.room_id
+    where rt.project_id=$1 and tt.code='wall-render-benthami' and r.number in ('203','214')`,[p])).length,0);
+  await login(admin);
+  assert.equal((await query("select id from public.task_types where project_id=$1 and code='wall-render'",[p])).length,0);
+  const managed=await query('select code from public.list_task_types_for_management($1)',[p]);
+  assert.ok(managed.some(row=>row.code==='wall-render'));
+  assert.ok(managed.some(row=>row.code==='wall-render-benthami'));
+  await login(worker);
+  await reject('select * from public.list_task_types_for_management($1)',[p],/project_admin_required/);
+  await db.exec('reset role');
+  await query("select set_config('request.jwt.claim.sub','',false)");
+  await db.exec(migration);
+  assert.equal((await first("select count(*)::int total from public.task_types where project_id=$1 and code='wall-render-benthami'",[p])).total,1);
+  const standardRoom=(await first("select id from public.rooms where project_id=$1 and number='201' order by created_at limit 1",[p])).id;
+  await query("update public.rooms set room_type='junior' where id=$1",[standardRoom]);
+  assert.notEqual((await first('select archived_at from public.room_tasks where id=$1',[standard.id])).archived_at,null);
+  await query("update public.rooms set room_type='standard' where id=$1",[standardRoom]);
+  assert.equal((await first('select archived_at from public.room_tasks where id=$1',[standard.id])).archived_at,null);
+  await login(admin);
+  const next=(await first('select public.create_mixed_use_project() id')).id;
+  assert.equal((await first("select count(*)::int total from public.task_types where project_id=$1 and code='wall-render-benthami'",[next])).total,1);
+  assert.equal((await first(`select count(*)::int total from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id join public.rooms r on r.id=rt.room_id
+    where rt.project_id=$1 and tt.code='wall-render-benthami' and r.room_type<>'standard'`,[next])).total,0);
+ });
  });
 
 

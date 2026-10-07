@@ -1,6 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { R2_BLOCKS, R2_ROOMS, ROOMS_BY_FLOOR } from "../src/project-data.js";
+import { taskApplicable, tasksByZone } from "../src/model.js";
+
+test("BENTHAMI dressage is separate and does not apply to suites",()=>{
+  assert.deepEqual(tasksByZone.bathroom.filter(task=>task.id.startsWith("wall-render")).map(task=>task.label),[
+    "Dressage mur — NOUR INOV","Dressage mur — BENTHAMI",
+  ]);
+  assert.equal(taskApplicable("standard","bathroom","wall-render-benthami"),true);
+  assert.equal(taskApplicable("junior","bathroom","wall-render-benthami"),false);
+  assert.equal(taskApplicable("executive","bathroom","wall-render-benthami"),false);
+  assert.equal(taskApplicable("junior","bathroom","wall-render"),true);
+});
 
 test("R+2 room definitions match the workbook", () => {
   assert.equal(R2_ROOMS.length, 40);

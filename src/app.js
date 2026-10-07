@@ -1,4 +1,4 @@
-import { CURRENT_FLOOR, emptyProject, projectDay, lockedProgress, taskGroup, tasksByZone } from "./model.js";
+import { CURRENT_FLOOR, emptyProject, projectDay, lockedProgress, taskApplicable, taskGroup, tasksByZone } from "./model.js";
 import { cleanDxfText, roomNumberFromText } from "./dxf-identification.js";
 import { createProjectRepository } from "./repositories/index.js";
 import { ROOMS_BY_FLOOR } from "./project-data.js";
@@ -395,7 +395,9 @@ function renderDxfZones() {
     let paths = [];
     if (state.selectedZone === "bathroom") paths = room.bathrooms.map((polygon) => pointsPath(polygon, true));
     if (state.selectedZone === "bedroom" && room.polygon) paths = [`${pointsPath(room.polygon, true)} ${[...room.bathrooms, ...room.loggias].map((polygon) => pointsPath(polygon, true)).join(" ")}`];
-    const zoneClass = roomMatchesFilters(room.number) ? (record ? statusClass(record) : "unassigned") : "filtered-out";
+    const zoneClass = !roomMatchesFilters(room.number) ? "filtered-out"
+      : task && !taskApplicable(roomTypeId(room.number),state.selectedZone,task) ? "not-applicable"
+      : record ? statusClass(record) : "unassigned";
     return paths.map((path) => `<path class="dxf-zone ${zoneClass}${activeClass}" data-room="${room.number}" d="${path}" fill-rule="evenodd"><title>Chambre ${room.number}</title></path>`).join("");
   }).join("");
 }
@@ -462,6 +464,7 @@ function roomAccessible(number) {
 
 function canEditSelectedRoom() {
   if(localMode || !currentUser || currentUser.role==="viewer")return false;
+  if(!taskApplicable(roomTypeId(state.selectedRoom),state.selectedZone,state.selectedTask))return false;
   return Boolean(cloud?.snapshot && editable(cloud.snapshot,currentUser?.id,
     state.selectedRoom+":"+state.selectedZone+":"+state.selectedTask,Boolean(state.correctionAuthorization)));
 }
@@ -568,7 +571,10 @@ function renderTaskSelect() {
     groups.get(group).push(task);
   }
   elements.taskSelect.innerHTML = tasks.length ? '<option value="">Choisir une tâche</option>'+[...groups.entries()].map(([group, groupTasks]) =>
-    `<optgroup label="${group}">${groupTasks.map((task) => `<option value="${task.id}">${escapeSvgText(task.label)}</option>`).join("")}</optgroup>`).join("")
+    `<optgroup label="${group}">${groupTasks.map((task) => {
+      const applicable=taskApplicable(roomTypeId(state.selectedRoom),state.selectedZone,task.id);
+      return `<option value="${task.id}" ${applicable?"":"disabled"}>${escapeSvgText(task.label)}${applicable?"":" — Non applicable"}</option>`;
+    }).join("")}</optgroup>`).join("")
     : '<option value="">Tâches à définir</option>';
   elements.taskSelect.disabled = !tasks.length;
   elements.taskSelect.value = state.selectedTask;
@@ -587,7 +593,7 @@ function filteredRooms() {
 }
 
 function renderSummary() {
-  const availableRooms = filteredRooms();
+  const availableRooms = filteredRooms().filter(room=>!state.selectedTask || taskApplicable(roomTypeId(room.number),state.selectedZone,state.selectedTask));
   if (!state.selectedTask) {
     elements.summaryStrip.innerHTML = `<span class="summary-item"><strong>${availableRooms.length}</strong> ${state.selectedZone === "loggia" ? "loggias" : "chambres"}</span>
       <span class="summary-item">Choisissez une tâche pour afficher son avancement</span>`;
@@ -640,12 +646,13 @@ function renderTaskList() {
       <summary>${group}<span>${groupTasks.length}</span></summary>
       <div class="task-group-items">${groupTasks.map((task) => {
         const record = getRecord(state.selectedRoom, state.selectedZone, task.id);
+        const applicable=taskApplicable(roomTypeId(state.selectedRoom),state.selectedZone,task.id);
         const active = task.id === state.selectedTask ? " active" : "";
         const complete = record.progress >= 100 ? " complete" : "";
-        return `<button class="task-row${active}" type="button" data-task="${task.id}">
-          <span class="task-name">${escapeSvgText(task.label)}</span><span class="task-percent">${record.progress} %</span>
-          ${record.blocked ? '<span class="blocked-tag">Bloquée</span>' : ""}
-          <span class="task-track"><i class="${complete}" style="width:${record.progress}%"></i></span>
+        return `<button class="task-row${active}${applicable?"":" not-applicable"}" type="button" data-task="${task.id}" ${applicable?"":"disabled"}>
+          <span class="task-name">${escapeSvgText(task.label)}</span><span class="task-percent">${applicable?`${record.progress} %`:"Non applicable"}</span>
+          ${applicable&&record.blocked ? '<span class="blocked-tag">Bloquée</span>' : ""}
+          ${applicable?`<span class="task-track"><i class="${complete}" style="width:${record.progress}%"></i></span>`:""}
         </button>`;
       }).join("")}</div>
     </details>`).join("") : '<div class="empty-state">Aucune tâche trouvée.</div>';
@@ -663,14 +670,19 @@ function renderEditor() {
   elements.blockedInput.checked = record.blocked;
   elements.noteInput.value = record.note;
   const correctionAuthorized = Boolean(state.correctionAuthorization);
+  const applicable=taskApplicable(roomTypeId(state.selectedRoom),state.selectedZone,state.selectedTask);
   document.querySelector("#correctionNoteLabel").textContent=elements.correctionReason.value==="input-error" ? "Explication (facultative)" : "Explication (obligatoire)";
   elements.correctionNote.required=elements.correctionReason.value!=="input-error";
   const locked = !canEditSelectedRoom() || saving;
   document.querySelector("#addTaskPhoto").disabled = locked || !cloud;
   document.querySelector("#viewTaskPhotos").disabled = !cloud;
   elements.taskLock.hidden = !locked;
-  elements.correctionTrigger.hidden = (!canEditSelectedRoom() && currentUser?.role !== "admin") || record.progress <= 0 || correctionAuthorized || state.correctionPanelOpen;
-  elements.correctionPanel.hidden = (!canEditSelectedRoom() && currentUser?.role !== "admin") || !state.correctionPanelOpen;
+  elements.taskLock.querySelector("strong").textContent=applicable?"Lecture seule":"Non applicable";
+  elements.taskLock.querySelector("p").textContent=applicable
+    ? "Seul l’intervenant affecté peut modifier cette tâche. Une diminution sous un avancement validé un jour précédent nécessite une justification."
+    : "BENTHAMI n’intervient pas dans les suites. Cette tâche ne compte pas dans leur avancement.";
+  elements.correctionTrigger.hidden = !applicable || (!canEditSelectedRoom() && currentUser?.role !== "admin") || record.progress <= 0 || correctionAuthorized || state.correctionPanelOpen;
+  elements.correctionPanel.hidden = !applicable || (!canEditSelectedRoom() && currentUser?.role !== "admin") || !state.correctionPanelOpen;
   elements.correctionAuthorized.hidden = !correctionAuthorized;
   elements.correctionAuthorized.textContent = correctionAuthorized
     ? `Correction autorisée : ${state.correctionAuthorization.reason === "input-error" ? "Erreur de saisie" : "Élément oublié ou ajouté"}`
@@ -1275,8 +1287,10 @@ async function syncCloud({refresh=true,closeDialog=false,refreshActivity=false,r
 async function renderAdminPage() {
   if(!cloud || currentUser?.role!=="admin") return;
   if(adminPage==="tasks") {
+    const managementTypes=await cloud.managementTaskTypes();
+    document.querySelector("#taskManagementMessage").textContent="";
     const groups=new Map();
-    const orderedTypes=[...(cloud.snapshot.taskTypes || [])].sort((a,b)=>{
+    const orderedTypes=[...managementTypes].sort((a,b)=>{
       const zoneOrder={bathroom:0,bedroom:1,loggia:2};
       return (zoneOrder[a.zone] ?? 3)-(zoneOrder[b.zone] ?? 3)
         || taskTypeOrder(a)-taskTypeOrder(b)
@@ -1405,11 +1419,17 @@ document.querySelector("#memberDirectory").onchange=async(event)=>{
 };
 document.querySelector("#adminNavigation").onclick=async(event)=>{
   const button=event.target.closest("[data-admin-page]");if(!button)return;
+  if(button.dataset.adminPage==="tasks"&&adminPage!=="tasks") {
+    taskManagementZone="bedroom";
+    document.querySelector("#taskManagementSearch").value="";
+    document.querySelector("#taskManagementFilter").value="all";
+  }
   adminPage=button.dataset.adminPage;renderAccessShell();
   try{await renderAdminPage();if(adminPage==="dashboard")requestAnimationFrame(fitPlan);}
   catch(error){
     const message=cloudErrorMessage(error);
     document.querySelector("#saveStatus").textContent=message;
+    if(adminPage==="tasks")document.querySelector("#taskManagementMessage").textContent=message;
     if(adminPage==="history")document.querySelector("#activityList").innerHTML='<p class="empty-state">'+escapeSvgText(message)+'</p>';
   }
 };

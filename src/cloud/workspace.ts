@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
-import { CURRENT_FLOOR, emptyProject } from "../model.js";
+import { CURRENT_FLOOR, emptyProject, taskApplicable } from "../model.js";
 import { OfflineStore } from "./offline-store.js";
 import { SyncEngine } from "./sync.js";
 import type { Snapshot, CloudTask, Operation, Receipt, Member } from "./types.js";
@@ -104,7 +104,8 @@ export class CloudWorkspace {
       const floor=floorById.get(room?.floor_id), block=blockById.get(room?.block_id);
       if (!room || !type || !floor) return [];
       return [{ id:t.id,floorCode:floor.code,key:room.number+":"+type.zone+":"+type.code,version:Number(t.version),
-        active:![project.archived_at,t.archived_at,room.archived_at,type.archived_at,floor.archived_at,block?.archived_at].some(Boolean),
+        active:taskApplicable(room.room_type || "standard",type.zone,type.code)
+          && ![project.archived_at,t.archived_at,room.archived_at,type.archived_at,floor.archived_at,block?.archived_at].some(Boolean),
         record:{confirmedDay:t.confirmed_day,confirmedProgress:t.progress,lockedProgress:t.locked_progress??t.progress,progress:t.progress,blocked:t.blocked,note:t.note,startDate:t.start_date||"",endDate:t.end_date||""} }];
     });
     // RLS and the RPC remain authoritative; this snapshot is only a UI/cache view.
@@ -209,6 +210,10 @@ export class CloudWorkspace {
     if (!navigator.onLine) throw new Error("Une connexion est nécessaire pour gérer les tâches.");
     await unwrap(client!.rpc("manage_task_type",{p_id:id,p_label:label,p_hidden:hidden,p_hidden_user_ids:hiddenUsers}));
     await this.exclusive(()=>this.refresh(this.snapshot!.projectId));
+  }
+  async managementTaskTypes() {
+    if (!navigator.onLine) throw new Error("Une connexion est nécessaire pour afficher toutes les tâches à gérer.");
+    return (await unwrap<any[] | null>(client!.rpc("list_task_types_for_management",{p_project_id:this.snapshot!.projectId}))) || [];
   }
   async history() {
     return await unwrap(client!.from("progress_updates").select("id,room_task_id,changed_by,before_state,after_state,correction_reason,correction_note,created_at").eq("project_id",this.snapshot!.projectId).order("created_at",{ascending:false}).limit(80)) as any[];

@@ -35,7 +35,8 @@ export const tasksByZone = {
     { id: "waterproofing", label: "Étanchéité SDB", sourceColumn: "L" },
     { id: "water-test", label: "Test mise en eau", sourceColumn: "M" },
     { id: "water-test-report", label: "PV test mise en eau", sourceColumn: "N" },
-    { id: "wall-render", label: "Dressage mur", sourceColumn: "O" },
+    { id: "wall-render", label: "Dressage mur — NOUR INOV", sourceColumn: "O" },
+    { id: "wall-render-benthami", label: "Dressage mur — BENTHAMI", sourceColumn: "O_B" },
     { id: "floor-screed", label: "Chape / forme de pente", sourceColumn: "P" },
     { id: "false-ceiling", label: "Structure faux plafond", sourceColumn: "Q" },
     { id: "ceiling-electrical", label: "Réseaux électricité plafond", sourceColumn: "R" },
@@ -107,7 +108,7 @@ const taskGroupRanges: Record<ZoneId, { label: string; columns: string[] }[]> = 
     { label: "Cloisons", columns: ["H"] },
     { label: "Électricité cloisons", columns: ["I", "J", "K"] },
     { label: "Étanchéité", columns: ["L", "M", "N"] },
-    { label: "Dressage", columns: ["O"] },
+    { label: "Dressage", columns: ["O", "O_B"] },
     { label: "Chape", columns: ["P"] },
     { label: "Faux plafond SDB", columns: ["Q", "R", "S", "T", "U", "V", "W"] },
     { label: "Peinture FP", columns: ["X"] },
@@ -140,6 +141,9 @@ const taskGroupRanges: Record<ZoneId, { label: string; columns: string[] }[]> = 
 
 export function taskGroup(zone: ZoneId, sourceColumn: string): string {
   return taskGroupRanges[zone].find((group) => group.columns.includes(sourceColumn))?.label || "Autres";
+}
+export function taskApplicable(roomType: string, zone: string, code: string): boolean {
+  return !(zone === "bathroom" && code === "wall-render-benthami" && roomType !== "standard");
 }
 export type ProgressRecord = {
   progress: number;

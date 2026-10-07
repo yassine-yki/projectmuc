@@ -391,6 +391,7 @@ h1 { font-size: 20px; line-height: 1.2; }
 .dxf-zone:hover { stroke-width: 2; fill-opacity: .5; }
 .dxf-zone.unassigned { fill: #aab8b3; stroke: #397c80; fill-opacity: .24; cursor: default; }
 .dxf-zone.unassigned:hover { stroke-width: 1.1; fill-opacity: .24; }
+.dxf-zone.not-applicable,.dxf-zone.not-applicable:hover { fill:#7c8580; stroke:#555e59; fill-opacity:.68; }
 .dxf-loggia-label { fill: #173c3e; paint-order: stroke; stroke: white; stroke-width: .12; font-weight: 700; pointer-events: none; }
 .dxf-zone.status-not-started { fill: #c94043; stroke: #9e292c; }
 .dxf-zone.status-in-progress { fill: #e38b22; stroke: #a75e0d; }
@@ -454,6 +455,8 @@ h3 { font-size: 18px; }
 }
 
 .task-row:hover { border-color: #aab7b1; }
+.task-row.not-applicable { background:#d6dbd8; border-color:#a1aaa5; color:#4d5751; opacity:1; cursor:not-allowed; }
+.task-row.not-applicable .task-percent { font-size:12px; }
 .task-row.active { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); }
 .task-name { overflow-wrap: anywhere; font-size: 14px; font-weight: 650; }
 .task-percent { font-size: 13px; font-weight: 800; }
