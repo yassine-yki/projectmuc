@@ -576,6 +576,37 @@ test('PISTACHE schema, RLS and transactional RPCs', async (t) => {
     join public.task_types tt on tt.id=rt.task_type_id join public.rooms r on r.id=rt.room_id
     where rt.project_id=$1 and tt.code='wall-render-benthami' and r.room_type<>'standard'`,[next])).total,0);
  });
+
+ await t.test('global OFF hides tracking for admins too while management can turn it ON again',async()=>{
+  await db.exec('reset role');
+  await db.exec(await readFile(new URL('../supabase/migrations/0025_global_task_visibility_for_admins.sql',import.meta.url),'utf8'));
+  await login(admin);
+  const project=(await first("select public.create_project('Global visibility') id")).id;
+  await query('select public.set_project_member($1,$2,$3,$4)',[project,worker,'worker','active']);
+  await query('select public.set_project_member($1,$2,$3,$4)',[project,viewer,'viewer','active']);
+  const floor=(await first("insert into public.floors(project_id,code,label) values ($1,'r2','R+2') returning id",[project])).id;
+  await query("insert into public.rooms(project_id,floor_id,number) values ($1,$2,'201')",[project,floor]);
+  const type=(await first("insert into public.task_types(project_id,code,label,zone) values ($1,'partitions','Cloisons chambre','bedroom') returning id",[project])).id;
+  const task=(await first('select id from public.room_tasks where task_type_id=$1',[type])).id;
+  await db.exec('reset role');
+  await query('update public.room_tasks set progress=42 where id=$1',[task]);
+  await login(admin);
+  assert.equal((await query('select id from public.room_tasks where id=$1',[task])).length,1);
+  await query('select public.manage_task_type($1,$2,$3,$4)',[type,'Cloisons chambre',true,[]]);
+  for(const user of [admin,worker,viewer]) {
+    await login(user);
+    assert.equal((await query('select id from public.task_types where id=$1',[type])).length,0);
+    assert.equal((await query('select id from public.room_tasks where id=$1',[task])).length,0);
+    assert.equal((await first('select private.task_type_visible($1) visible',[type])).visible,false);
+  }
+  await login(admin);
+  assert.equal((await first('select hidden from public.list_task_types_for_management($1) where id=$2',[project,type])).hidden,true);
+  await query('select public.manage_task_type($1,$2,$3,$4)',[type,'Cloisons chambre',false,[]]);
+  assert.equal((await first('select hidden from public.list_task_types_for_management($1) where id=$2',[project,type])).hidden,false);
+  assert.equal((await first('select progress from public.room_tasks where id=$1',[task])).progress,42);
+  await login(worker);
+  assert.equal((await first('select progress from public.room_tasks where id=$1',[task])).progress,42);
+ });
  });
 
 

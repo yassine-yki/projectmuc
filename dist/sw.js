@@ -1,4 +1,4 @@
-const CACHE="pistache-shell-5827b0f80b0b880c";
+const CACHE="pistache-shell-137057d48bbfa19b";
 const PLAN_CACHE='pistache-plans-v2';
 const FILES=["/index.html","/favicon.svg","/vendor/dxf-parser.js","/mixed-use-avancement-template.xlsx","/assets/equipment-map-Kf-MsfBr.js","/assets/html2canvas-Dn6bw578.js","/assets/index-Bm4wvHk9.js","/assets/index-Djy8YJus.css","/assets/index.es-DkacKwsE.js","/assets/jspdf.es.min-Bsz8rQ9_.js","/assets/purify.es-Bvo9QlJ8.js","/assets/rolldown-runtime-hePW80VL.js"];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)).then(()=>self.skipWaiting())));
