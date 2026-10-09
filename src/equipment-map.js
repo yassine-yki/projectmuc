@@ -1,5 +1,6 @@
 import { cleanDxfText, roomNumberFromText } from "./dxf-identification.js";
 import { EQUIPMENT_LABELS, EQUIPMENT_RECORDS, equipmentIsDefined, equipmentRecord } from "./equipment-data.js";
+import { equipmentVisuals, motifInk } from "./equipment-visuals.js";
 import { ROOMS_BY_FLOOR } from "./project-data.js";
 
 const UNDEFINED_COLOR = "#ff003c";
@@ -109,28 +110,44 @@ function buildModel(dxf) {
 
 function visualMapFor(equipment) {
   const tips = [...new Set(EQUIPMENT_RECORDS.filter((record) => record.equipment === equipment && equipmentIsDefined(record)).map((record) => record.tipExcel))].sort();
-  const palette = ["#1E88E5", "#00A651", "#FFD600", "#9C6ADE", "#7A4E2D", "#FF5FA2", "#FF8C00", "#0B2E59", "#F4F0E6", "#66C7F2", "#00B8D9", "#B8860B"];
-  return new Map(tips.map((tip, index) => [tip, { color: palette[index % palette.length], pattern: Math.floor(index / palette.length), code: index + 1 }]));
+  return equipmentVisuals(tips);
 }
 
 function patternDefinitions(visuals, prefix) {
-  return [...visuals.values()].filter((visual) => visual.pattern > 0).map((visual) => {
+  return [...visuals.values()].map((visual) => {
     const id = `${prefix}-${visual.code}`;
-    if (visual.pattern === 1) return `<pattern id="${id}" width="0.65" height="0.65" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.65" height="0.65" fill="${visual.color}"/><rect width="0.18" height="0.65" fill="#fff" fill-opacity="0.72"/></pattern>`;
-    if (visual.pattern === 2) return `<pattern id="${id}" width="0.72" height="0.72" patternUnits="userSpaceOnUse"><rect width="0.72" height="0.72" fill="${visual.color}"/><circle cx="0.36" cy="0.36" r="0.13" fill="#fff" fill-opacity="0.8"/></pattern>`;
-    return `<pattern id="${id}" width="0.75" height="0.75" patternUnits="userSpaceOnUse"><rect width="0.75" height="0.75" fill="${visual.color}"/><path d="M0 0L.75 .75M.75 0L0 .75" stroke="#fff" stroke-opacity="0.72" stroke-width="0.11"/></pattern>`;
+    const ink = motifInk(visual.color);
+    const marks = [
+      `<path d="M0 0L.9 .9" stroke="${ink}" stroke-width=".17"/>`,
+      `<path d="M.9 0L0 .9" stroke="${ink}" stroke-width=".17"/>`,
+      `<path d="M0 .45H.9" stroke="${ink}" stroke-width=".17"/>`,
+      `<path d="M.45 0V.9" stroke="${ink}" stroke-width=".17"/>`,
+      `<circle cx=".45" cy=".45" r=".16" fill="${ink}"/>`,
+      `<path d="M0 .45H.9M.45 0V.9" stroke="${ink}" stroke-width=".13"/>`,
+      `<path d="M.08 .08L.82 .82M.82 .08L.08 .82" stroke="${ink}" stroke-width=".13"/>`,
+      `<path d="M0 0H.45V.45H0ZM.45 .45H.9V.9H.45Z" fill="${ink}" fill-opacity=".7"/>`,
+    ];
+    return `<pattern id="${id}" width=".9" height=".9" patternUnits="userSpaceOnUse"><rect width=".9" height=".9" fill="${visual.color}"/>${marks[visual.pattern]}</pattern>`;
   }).join("");
 }
 
 function visualFill(visual, prefix) {
-  return visual.pattern ? `url(#${prefix}-${visual.code})` : visual.color;
+  return `url(#${prefix}-${visual.code})`;
 }
 
 function swatchBackground(visual) {
-  if (visual.pattern === 1) return `repeating-linear-gradient(135deg,${visual.color} 0 5px,#fff 5px 7px)`;
-  if (visual.pattern === 2) return `radial-gradient(circle at 50% 50%,#fff 0 2px,transparent 2.5px),${visual.color}`;
-  if (visual.pattern >= 3) return `repeating-linear-gradient(45deg,transparent 0 4px,#fff 4px 5px),repeating-linear-gradient(-45deg,${visual.color} 0 4px,#fff 4px 5px)`;
-  return visual.color;
+  const ink = motifInk(visual.color);
+  const marks = [
+    `repeating-linear-gradient(45deg,transparent 0 5px,${ink} 5px 7px,transparent 7px 10px)`,
+    `repeating-linear-gradient(135deg,transparent 0 5px,${ink} 5px 7px,transparent 7px 10px)`,
+    `repeating-linear-gradient(0deg,transparent 0 5px,${ink} 5px 7px,transparent 7px 10px)`,
+    `repeating-linear-gradient(90deg,transparent 0 5px,${ink} 5px 7px,transparent 7px 10px)`,
+    `radial-gradient(circle,${ink} 0 2px,transparent 2.5px)`,
+    `repeating-linear-gradient(0deg,transparent 0 5px,${ink} 5px 6.5px,transparent 6.5px 10px),repeating-linear-gradient(90deg,transparent 0 5px,${ink} 5px 6.5px,transparent 6.5px 10px)`,
+    `repeating-linear-gradient(45deg,transparent 0 7px,${ink} 7px 8.5px,transparent 8.5px 14px),repeating-linear-gradient(135deg,transparent 0 7px,${ink} 7px 8.5px,transparent 8.5px 14px)`,
+    `conic-gradient(${ink} 25%,${visual.color} 0 50%,${ink} 0 75%,${visual.color} 0)`,
+  ];
+  return `${marks[visual.pattern]},${visual.color}`;
 }
 
 function roomCategoryFor(floorId, roomNumber) {
@@ -404,11 +421,23 @@ function drawReportLegend(pdf, legend, visuals) {
       continue;
     }
     const [red, green, blue] = item.unavailable ? [85, 92, 88] : hslRgb(item.color || item.visual.color);
-    pdf.setFillColor(red, green, blue); pdf.setDrawColor(45, 55, 49); pdf.rect(234, y - 2.7, 3.2, 3.2, "FD");
-    if (item.unavailable) { pdf.setDrawColor(180, 185, 182); pdf.line(234, y + 0.2, 237.2, y - 2.6); }
-    if (item.visual?.pattern === 1) { pdf.setDrawColor(255,255,255); pdf.line(234,y+.2,237.2,y-2.6); }
-    if (item.visual?.pattern === 2) { pdf.setFillColor(255,255,255); pdf.circle(235.6,y-1.1,.55,"F"); }
-    if (item.visual?.pattern >= 3) { pdf.setDrawColor(255,255,255); pdf.line(234,y+.2,237.2,y-2.6); pdf.line(234,y-2.6,237.2,y+.2); }
+    const x = 234, top = y - 2.7, side = 3.2;
+    pdf.setFillColor(red, green, blue); pdf.setDrawColor(45, 55, 49); pdf.rect(x, top, side, side, "FD");
+    if (item.unavailable) { pdf.setDrawColor(180, 185, 182); pdf.line(x, top + side, x + side, top); }
+    if (item.visual) {
+      const ink = hslRgb(motifInk(item.visual.color));
+      pdf.setDrawColor(...ink); pdf.setFillColor(...ink); pdf.setLineWidth(.35);
+      switch (item.visual.pattern) {
+        case 0: pdf.line(x, top, x + side, top + side); break;
+        case 1: pdf.line(x + side, top, x, top + side); break;
+        case 2: pdf.line(x, top + side / 2, x + side, top + side / 2); break;
+        case 3: pdf.line(x + side / 2, top, x + side / 2, top + side); break;
+        case 4: pdf.circle(x + side / 2, top + side / 2, .6, "F"); break;
+        case 5: pdf.line(x, top + side / 2, x + side, top + side / 2); pdf.line(x + side / 2, top, x + side / 2, top + side); break;
+        case 6: pdf.line(x + .3, top + .3, x + side - .3, top + side - .3); pdf.line(x + side - .3, top + .3, x + .3, top + side - .3); break;
+        case 7: pdf.rect(x, top, side / 2, side / 2, "F"); pdf.rect(x + side / 2, top + side / 2, side / 2, side / 2, "F"); break;
+      }
+    }
     pdf.setFont("helvetica", "normal"); pdf.setFontSize(Math.min(6.8, lineHeight + 1.5)); pdf.setTextColor(35, 46, 40);
     pdf.text(`${item.visual ? String(item.visual.code).padStart(2,"0")+" · " : ""}${item.tip}`, 239, y, { maxWidth: 43 }); pdf.setFont("helvetica", "bold"); pdf.text(String(item.count), 287, y, { align: "right" }); y += lineHeight;
   }
