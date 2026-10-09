@@ -1,7 +1,8 @@
-// A small, separated palette leaves red exclusively for missing equipment data.
-// Eight textures make repeated colours distinguishable even in monochrome exports.
-export const EQUIPMENT_PALETTE = ["#0069B5", "#13804A", "#E8CE00", "#7839A8", "#D87500", "#624328"] as const;
-export const EQUIPMENT_MOTIFS = ["diagonal", "reverse", "horizontal", "vertical", "dots", "grid", "crosshatch", "checker"] as const;
+// Muted architectural tones keep the plan readable; codes and sparse motifs
+// distinguish repeated colours without turning every room into a bright tile.
+export const EQUIPMENT_PALETTE = ["#8AADC2", "#9DBB8F", "#D6B65B", "#B199C9", "#CD9074", "#7E6A52"] as const;
+export const EQUIPMENT_MOTIFS = ["diagonal", "reverse", "horizontal", "vertical", "dots", "grid", "crosshatch", "ring"] as const;
+export const EQUIPMENT_MOTIF_INK = "#46514d";
 
 export type EquipmentVisual = { color: string; pattern: number; code: number };
 
@@ -15,10 +16,4 @@ export function equipmentVisuals(tipNames: string[]): Map<string, EquipmentVisua
       code: index + 1,
     }];
   }));
-}
-
-export function motifInk(color: string): string {
-  const channels = [1, 3, 5].map((start) => parseInt(color.slice(start, start + 2), 16) / 255);
-  const luminance = channels.map((value) => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
-  return .2126 * luminance[0] + .7152 * luminance[1] + .0722 * luminance[2] > .31 ? "#172019" : "#ffffff";
 }

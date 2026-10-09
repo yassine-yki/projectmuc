@@ -1,9 +1,9 @@
 import { cleanDxfText, roomNumberFromText } from "./dxf-identification.js";
 import { EQUIPMENT_LABELS, EQUIPMENT_RECORDS, equipmentIsDefined, equipmentRecord } from "./equipment-data.js";
-import { equipmentVisuals, motifInk } from "./equipment-visuals.js";
+import { EQUIPMENT_MOTIF_INK, equipmentVisuals } from "./equipment-visuals.js";
 import { ROOMS_BY_FLOOR } from "./project-data.js";
 
-const UNDEFINED_COLOR = "#ff003c";
+const UNDEFINED_COLOR = "#f5ccd2";
 const EXECUTIVE_COLOR = "#555c58";
 let projectDefinition = null;
 let selectedFloor = "r2";
@@ -116,18 +116,18 @@ function visualMapFor(equipment) {
 function patternDefinitions(visuals, prefix) {
   return [...visuals.values()].map((visual) => {
     const id = `${prefix}-${visual.code}`;
-    const ink = motifInk(visual.color);
+    const ink = EQUIPMENT_MOTIF_INK;
     const marks = [
-      `<path d="M0 0L.9 .9" stroke="${ink}" stroke-width=".17"/>`,
-      `<path d="M.9 0L0 .9" stroke="${ink}" stroke-width=".17"/>`,
-      `<path d="M0 .45H.9" stroke="${ink}" stroke-width=".17"/>`,
-      `<path d="M.45 0V.9" stroke="${ink}" stroke-width=".17"/>`,
-      `<circle cx=".45" cy=".45" r=".16" fill="${ink}"/>`,
-      `<path d="M0 .45H.9M.45 0V.9" stroke="${ink}" stroke-width=".13"/>`,
-      `<path d="M.08 .08L.82 .82M.82 .08L.08 .82" stroke="${ink}" stroke-width=".13"/>`,
-      `<path d="M0 0H.45V.45H0ZM.45 .45H.9V.9H.45Z" fill="${ink}" fill-opacity=".7"/>`,
+      `<path d="M0 0L1.7 1.7" stroke="${ink}" stroke-width=".12"/>`,
+      `<path d="M1.7 0L0 1.7" stroke="${ink}" stroke-width=".12"/>`,
+      `<path d="M0 .85H1.7" stroke="${ink}" stroke-width=".12"/>`,
+      `<path d="M.85 0V1.7" stroke="${ink}" stroke-width=".12"/>`,
+      `<circle cx=".85" cy=".85" r=".17" fill="${ink}"/>`,
+      `<path d="M0 .85H1.7M.85 0V1.7" stroke="${ink}" stroke-width=".10"/>`,
+      `<path d="M.12 .12L1.58 1.58M1.58 .12L.12 1.58" stroke="${ink}" stroke-width=".10"/>`,
+      `<circle cx=".85" cy=".85" r=".53" fill="none" stroke="${ink}" stroke-width=".13"/>`,
     ];
-    return `<pattern id="${id}" width=".9" height=".9" patternUnits="userSpaceOnUse"><rect width=".9" height=".9" fill="${visual.color}"/>${marks[visual.pattern]}</pattern>`;
+    return `<pattern id="${id}" width="1.7" height="1.7" patternUnits="userSpaceOnUse"><rect width="1.7" height="1.7" fill="${visual.color}"/><g opacity=".25">${marks[visual.pattern]}</g></pattern>`;
   }).join("");
 }
 
@@ -136,16 +136,16 @@ function visualFill(visual, prefix) {
 }
 
 function swatchBackground(visual) {
-  const ink = motifInk(visual.color);
+  const ink = "rgba(70,81,77,.28)";
   const marks = [
-    `repeating-linear-gradient(45deg,transparent 0 5px,${ink} 5px 7px,transparent 7px 10px)`,
-    `repeating-linear-gradient(135deg,transparent 0 5px,${ink} 5px 7px,transparent 7px 10px)`,
-    `repeating-linear-gradient(0deg,transparent 0 5px,${ink} 5px 7px,transparent 7px 10px)`,
-    `repeating-linear-gradient(90deg,transparent 0 5px,${ink} 5px 7px,transparent 7px 10px)`,
-    `radial-gradient(circle,${ink} 0 2px,transparent 2.5px)`,
-    `repeating-linear-gradient(0deg,transparent 0 5px,${ink} 5px 6.5px,transparent 6.5px 10px),repeating-linear-gradient(90deg,transparent 0 5px,${ink} 5px 6.5px,transparent 6.5px 10px)`,
-    `repeating-linear-gradient(45deg,transparent 0 7px,${ink} 7px 8.5px,transparent 8.5px 14px),repeating-linear-gradient(135deg,transparent 0 7px,${ink} 7px 8.5px,transparent 8.5px 14px)`,
-    `conic-gradient(${ink} 25%,${visual.color} 0 50%,${ink} 0 75%,${visual.color} 0)`,
+    `repeating-linear-gradient(45deg,transparent 0 10px,${ink} 10px 11px,transparent 11px 20px)`,
+    `repeating-linear-gradient(135deg,transparent 0 10px,${ink} 10px 11px,transparent 11px 20px)`,
+    `repeating-linear-gradient(0deg,transparent 0 10px,${ink} 10px 11px,transparent 11px 20px)`,
+    `repeating-linear-gradient(90deg,transparent 0 10px,${ink} 10px 11px,transparent 11px 20px)`,
+    `radial-gradient(circle,${ink} 0 1.5px,transparent 2px)`,
+    `repeating-linear-gradient(0deg,transparent 0 10px,${ink} 10px 11px,transparent 11px 20px),repeating-linear-gradient(90deg,transparent 0 10px,${ink} 10px 11px,transparent 11px 20px)`,
+    `repeating-linear-gradient(45deg,transparent 0 10px,${ink} 10px 11px,transparent 11px 20px),repeating-linear-gradient(135deg,transparent 0 10px,${ink} 10px 11px,transparent 11px 20px)`,
+    `radial-gradient(circle,transparent 0 5px,${ink} 5px 6px,transparent 6.5px)`,
   ];
   return `${marks[visual.pattern]},${visual.color}`;
 }
@@ -346,8 +346,8 @@ function reportSvg(model, floorId, equipment, category) {
     const defined = equipmentIsDefined(record);
     const visual = defined ? visuals.get(record.tipExcel) : null;
     const fill = applicable ? (defined ? visualFill(visual, "report-tip") : UNDEFINED_COLOR) : "url(#report-unavailable)";
-    const stroke = applicable && !defined ? "#b9002c" : applicable ? "#34443b" : "#242a27";
-    if (room.polygon) return `<path d="${pathFromPoints(room.polygon, true)}" fill="${fill}" fill-opacity="${applicable ? 0.82 : 1}" stroke="${stroke}" stroke-width="0.13"/>`;
+    const stroke = applicable && !defined ? "#c13c51" : applicable ? "#59635c" : "#242a27";
+    if (room.polygon) return `<path d="${pathFromPoints(room.polygon, true)}" fill="${fill}" fill-opacity="${applicable ? 0.64 : 1}" stroke="${stroke}" stroke-width="0.13"/>`;
     return `<circle cx="${numberValue(room.labelPoint.x)}" cy="${numberValue(room.labelPoint.y)}" r="${numberValue(labelSize * 1.5)}" fill="${fill}" stroke="${stroke}" stroke-width="0.13"/>`;
   }).join("");
   const labels = model.rooms.map((room) => {
@@ -425,8 +425,8 @@ function drawReportLegend(pdf, legend, visuals) {
     pdf.setFillColor(red, green, blue); pdf.setDrawColor(45, 55, 49); pdf.rect(x, top, side, side, "FD");
     if (item.unavailable) { pdf.setDrawColor(180, 185, 182); pdf.line(x, top + side, x + side, top); }
     if (item.visual) {
-      const ink = hslRgb(motifInk(item.visual.color));
-      pdf.setDrawColor(...ink); pdf.setFillColor(...ink); pdf.setLineWidth(.35);
+      const ink = hslRgb(EQUIPMENT_MOTIF_INK);
+      pdf.setDrawColor(...ink); pdf.setFillColor(...ink); pdf.setLineWidth(.16);
       switch (item.visual.pattern) {
         case 0: pdf.line(x, top, x + side, top + side); break;
         case 1: pdf.line(x + side, top, x, top + side); break;
@@ -435,7 +435,7 @@ function drawReportLegend(pdf, legend, visuals) {
         case 4: pdf.circle(x + side / 2, top + side / 2, .6, "F"); break;
         case 5: pdf.line(x, top + side / 2, x + side, top + side / 2); pdf.line(x + side / 2, top, x + side / 2, top + side); break;
         case 6: pdf.line(x + .3, top + .3, x + side - .3, top + side - .3); pdf.line(x + side - .3, top + .3, x + .3, top + side - .3); break;
-        case 7: pdf.rect(x, top, side / 2, side / 2, "F"); pdf.rect(x + side / 2, top + side / 2, side / 2, side / 2, "F"); break;
+        case 7: pdf.circle(x + side / 2, top + side / 2, .95, "S"); break;
       }
     }
     pdf.setFont("helvetica", "normal"); pdf.setFontSize(Math.min(6.8, lineHeight + 1.5)); pdf.setTextColor(35, 46, 40);

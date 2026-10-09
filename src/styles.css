@@ -862,11 +862,11 @@ body img.brand-mark { width:64px; height:54px; object-fit:contain; background:tr
 #equipmentPlan { display:block; width:100%; height:100%; min-height:420px; }
 .equipment-architecture { pointer-events:none; }
 .equipment-architecture path { fill:none; stroke:#808984; stroke-width:.48; vector-effect:non-scaling-stroke; opacity:.68; }
-.equipment-room { fill:var(--equipment-color); fill-opacity:.82; stroke:color-mix(in srgb,var(--equipment-color),#14271e 34%); stroke-width:1.15; vector-effect:non-scaling-stroke; cursor:pointer; transition:fill-opacity .15s; }
-.equipment-room.undefined { fill-opacity:.9; stroke:#b9002c; stroke-width:1.8; }
+.equipment-room { fill:var(--equipment-color); fill-opacity:.62; stroke:#68746d; stroke-width:1.15; vector-effect:non-scaling-stroke; cursor:pointer; transition:fill-opacity .15s; }
+.equipment-room.undefined { fill-opacity:.8; stroke:#c13c51; stroke-width:1.8; }
 .equipment-room.unavailable { fill:url(#equipment-unavailable-pattern); fill-opacity:1; stroke:#242a27; stroke-width:2.2; stroke-dasharray:5 2; }
-.equipment-room:hover,.equipment-room.selected { fill-opacity:.82; stroke:#162d21; stroke-width:2.4; }
-.equipment-room.focused { fill-opacity:1; stroke:#111; stroke-width:3.2; }
+.equipment-room:hover,.equipment-room.selected { fill-opacity:.8; stroke:#263e33; stroke-width:2.4; }
+.equipment-room.focused { fill-opacity:.9; stroke:#1e3329; stroke-width:3.2; }
 .equipment-room.comparison-muted { fill-opacity:.8; stroke:#8b9690; stroke-width:1; }
 .equipment-room.filtered-out,.equipment-room-label.filtered-out,.equipment-tip-code.filtered-out { opacity:.06; pointer-events:none; }
 .equipment-room.comparison-muted.filtered-out { opacity:.48; }
@@ -893,7 +893,7 @@ body img.brand-mark { width:64px; height:54px; object-fit:contain; background:tr
 .equipment-legend-item:not(.static):hover { background:#e8efe5; box-shadow:inset 3px 0 var(--green); }
 .equipment-legend-item.active { background:#eef0ed; box-shadow:inset 4px 0 #171717; }
 .equipment-legend-item:first-of-type { border-top:0; }
-.equipment-legend-item i { width:20px; height:20px; border:1px solid #526058; border-radius:4px; background:var(--equipment-color); }
+.equipment-legend-item i { width:20px; height:20px; border:1px solid #8c9991; border-radius:4px; background:var(--equipment-color); }
 .equipment-legend-item i.unavailable-swatch { border-color:#292f2c; background:repeating-linear-gradient(135deg,#555c58 0 4px,#aeb4b1 4px 7px); }
 .equipment-type-code { display:inline-grid; place-items:center; min-width:24px; margin-right:6px; padding:1px 3px; border-radius:4px; background:#26352d; color:#fff; font-size:10px; }
 .equipment-legend-item strong { color:var(--muted); }
