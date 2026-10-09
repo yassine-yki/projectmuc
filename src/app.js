@@ -20,6 +20,7 @@ const guestModeKey = "pistache-guest-mode";
 const localMode = !cloudConfigured || sessionStorage.getItem(guestModeKey) === "true";
 let cloud = null;
 let synchronizing = false;
+let refreshCloudPromise = null;
 let currentUser = null;
 let accessReady = false;
 let saving = false;
@@ -1096,7 +1097,7 @@ async function openProject(projectId) {
   state.selectedRoom=rooms.find(r=>roomAccessible(r.number))?.number ?? null;
   render();
   hideAppLoading();
-  if(!localMode){await renderSync();void syncCloud();}
+  if(!localMode){await renderSync();void refreshCloudReadOnly();}
   document.querySelector("#trackingModeDialog").showModal();
 }
 
@@ -1219,7 +1220,7 @@ function operationChanges(operation,operations) {
 }
 function operationReviewCard(operation,operations,{problem=false,draft=false}={}) {
   const context=operationContext(operation),created=new Intl.DateTimeFormat("fr-FR",{dateStyle:"short",timeStyle:"short"}).format(new Date(operation.createdAt));
-  return '<article class="activity-item sync-review-item"><header><strong>Chambre '+escapeSvgText(context.room)+'</strong><span>'+escapeSvgText([context.floor,context.zoneLabel].filter(Boolean).join(" · "))+'</span></header><dl><div><dt>Tâche</dt><dd>'+escapeSvgText(context.group)+'</dd></div><div><dt>Sous-tâche</dt><dd>'+escapeSvgText(context.label)+'</dd></div></dl><div class="activity-changes"><b>Modification</b>'+operationChanges(operation,operations).map(change=>'<span>'+escapeSvgText(change)+'</span>').join("")+'</div><footer><time>'+escapeSvgText(created)+'</time></footer>'+(draft?'<button type="button" class="button secondary draft-delete" data-discard-draft="'+escapeSvgText(operation.id)+'">Supprimer ce brouillon</button>':"")+(problem?'<p class="sync-error">'+escapeSvgText(syncError(operation.error))+'</p><button type="button" class="button secondary" data-discard-task="'+escapeSvgText(operation.taskId)+'">Conserver la valeur du serveur</button>':"")+'</article>';
+  return '<article class="activity-item sync-review-item"><header><strong>Chambre '+escapeSvgText(context.room)+'</strong><span>'+escapeSvgText([context.floor,context.zoneLabel].filter(Boolean).join(" · "))+'</span></header><dl><div><dt>Tâche</dt><dd>'+escapeSvgText(context.group)+'</dd></div><div><dt>Sous-tâche</dt><dd>'+escapeSvgText(context.label)+'</dd></div></dl><div class="activity-changes"><b>Modification</b>'+operationChanges(operation,operations).map(change=>'<span>'+escapeSvgText(change)+'</span>').join("")+'</div><footer><time>'+escapeSvgText(created)+'</time></footer>'+(draft?'<button type="button" class="button secondary draft-delete" data-discard-draft="'+escapeSvgText(operation.id)+'">Supprimer ce brouillon</button>':"")+(operation.state==="pending"?'<button type="button" class="button secondary draft-delete" data-discard-unsent="'+escapeSvgText(operation.taskId)+'">Retirer avant envoi</button>':"")+(problem?'<p class="sync-error">'+escapeSvgText(syncError(operation.error))+'</p><button type="button" class="button secondary" data-discard-task="'+escapeSvgText(operation.taskId)+'">Conserver la valeur du serveur</button>':"")+'</article>';
 }
 async function renderSync() {
   if(!cloud?.snapshot) return;
@@ -1227,10 +1228,11 @@ async function renderSync() {
   const pending=operations.filter(o=>o.state==="pending").length;
   const drafts=operations.filter(o=>o.state==="draft").length;
   const problems=operations.filter(o=>o.state!=="pending"&&o.state!=="draft");
-  document.querySelector("#saveStatus").textContent=problems.length ? problems.length+" modification(s) à examiner"
-    : drafts ? drafts+" brouillon(s) sur cet appareil — non partagés"
-    : pending ? pending+" modification(s) en attente de synchronisation"
-    : navigator.onLine ? "Synchronisé" : "Hors connexion — copie locale";
+  document.querySelector("#saveStatus").textContent=[
+    drafts ? drafts+" brouillon(s) non partagés" : "",
+    pending ? pending+" saisie(s) validée(s) à synchroniser" : "",
+    problems.length ? problems.length+" modification(s) à examiner" : "",
+  ].filter(Boolean).join(" · ") || (navigator.onLine ? "Synchronisé" : "Hors connexion — copie locale");
   const pendingOperations=operations.filter(o=>o.state==="pending");
   const section=(title,items,options={})=>items.length?'<section class="sync-review-section"><h3>'+title+' <span>'+items.length+'</span></h3>'+items.map(item=>operationReviewCard(item,operations,options)).join("")+'</section>':"";
   document.querySelector("#syncProblems").innerHTML=section("Brouillons non partagés",operations.filter(o=>o.state==="draft"),{draft:true})
@@ -1260,12 +1262,33 @@ function activityChanges(before={},after={}) {
   if((before.end_date || "")!==(after.end_date || ""))changes.push(`Fin : ${after.end_date || "retirée"}`);
   return changes.length ? changes : ["Mise à jour enregistrée"];
 }
-async function syncCloud({refresh=true,closeDialog=false,refreshActivity=false,retryInvalid=false}={}) {
+function refreshCloudReadOnly() {
+  if(refreshCloudPromise)return refreshCloudPromise;
+  if(!cloud?.snapshot || synchronizing || !navigator.onLine)return Promise.resolve(false);
+  const workspace=cloud;
+  refreshCloudPromise=(async()=>{
+    try {
+      await saveQueue;
+      await workspace.exclusive(()=>workspace.refresh(workspace.snapshot.projectId));
+      if(cloud!==workspace)return false;
+      currentUser={...workspace.user,role:workspace.snapshot.role};
+      project=await workspace.project();state.records=currentFloorRecords();
+      if(!roomAccessible(state.selectedRoom))state.selectedRoom=rooms.find(r=>roomAccessible(r.number))?.number ?? null;
+      render();await renderSync();
+      return true;
+    } catch(error) {
+      if(cloud===workspace)document.querySelector("#saveStatus").textContent="Actualisation impossible : "+cloudErrorMessage(error);
+      return false;
+    }
+  })().finally(()=>{refreshCloudPromise=null;});
+  return refreshCloudPromise;
+}
+async function syncCloud({refresh=true,closeDialog=false,refreshActivity=false}={}) {
+  if(refreshCloudPromise)await refreshCloudPromise;
   if(!cloud?.snapshot || synchronizing || !navigator.onLine) { await renderSync(); return; }
   const workspace=cloud; synchronizing=true;
   try {
     await saveQueue;
-    if(retryInvalid)await workspace.retryInvalidOperations();
     await workspace.sync(refresh);
     if(cloud!==workspace) return;
     currentUser={...workspace.user,role:workspace.snapshot.role};
@@ -1439,8 +1462,8 @@ document.querySelector("#exportExcel").onclick=async(event)=>{
   button.disabled=true;button.textContent="Préparation…";
   document.querySelector("#saveStatus").textContent="Actualisation des résultats avant export…";
   try{
-    const synced=await syncCloud({refresh:true});
-    if(!synced)throw new Error("La synchronisation doit réussir avant l’export.");
+    const refreshed=await refreshCloudReadOnly();
+    if(!refreshed)throw new Error("L’actualisation des résultats partagés doit réussir avant l’export.");
     const visibleColumns=(cloud.snapshot.taskTypes || []).map(type=>type.source_column).filter(Boolean);
     await downloadProgressWorkbook(cloud.snapshot.tasks,{visibleColumns});
     document.querySelector("#saveStatus").textContent="Export Excel téléchargé";
@@ -1489,8 +1512,8 @@ document.querySelector("#exportDailyPdf").onclick=async(event)=>{
   const button=event.currentTarget,label=button.textContent;button.disabled=true;button.textContent="Préparation…";
   document.querySelector("#saveStatus").textContent="Préparation du rapport journalier…";
   try {
-    const synced=await syncCloud({refresh:true});
-    if(!synced)throw new Error("La synchronisation doit réussir avant l’export.");
+    const refreshed=await refreshCloudReadOnly();
+    if(!refreshed)throw new Error("L’actualisation des résultats partagés doit réussir avant l’export.");
     const reportDate=new Date(),day=projectDay(reportDate);
     const history=(await cloud.recentHistory()).filter(item=>projectDay(new Date(item.created_at))===day);
     const describe=(zone,code)=>{
@@ -1635,8 +1658,24 @@ document.querySelector("#loginForm").onsubmit=async(event)=>{
 
 document.querySelector("#syncButton").onclick=()=>{document.querySelector("#syncDialog").showModal();void renderSync();};
 document.querySelector("#closeSync").onclick=()=>document.querySelector("#syncDialog").close();
-document.querySelector("#retrySync").onclick=()=>void syncCloud({refresh:true,closeDialog:true,refreshActivity:true,retryInvalid:true});
+document.querySelector("#retrySync").onclick=()=>void syncCloud({refresh:true,closeDialog:true,refreshActivity:true});
 document.querySelector("#syncProblems").onclick=async(event)=>{
+  const unsentButton=event.target.closest("[data-discard-unsent]");
+  if(unsentButton){
+    if(synchronizing)return;
+    if(!confirm("Retirer les saisies validées et les brouillons non envoyés de cette tâche ? La valeur partagée sera restaurée sur cet appareil."))return;
+    if(synchronizing)return;
+    unsentButton.disabled=true;
+    try {
+      const removed=await cloud.discardUnsentTask(unsentButton.dataset.discardUnsent);
+      project=await cloud.project();state.records=currentFloorRecords();render();await renderSync();
+      if(!removed)document.querySelector("#saveStatus").textContent="Cette saisie n’est plus en attente d’envoi.";
+    } catch(error) {
+      document.querySelector("#saveStatus").textContent="Retrait impossible : "+cloudErrorMessage(error);
+      unsentButton.disabled=false;
+    }
+    return;
+  }
   const draftButton=event.target.closest("[data-discard-draft]");
   if(draftButton){
     if(!confirm("Supprimer uniquement ce brouillon ? La dernière valeur validée sera restaurée pour cette tâche."))return;
@@ -1650,10 +1689,9 @@ document.querySelector("#syncProblems").onclick=async(event)=>{
   await cloud.exclusive(()=>cloud.engine.discard(cloud.snapshot.projectId,button.dataset.discardTask));
   project=await cloud.project();state.records=currentFloorRecords();render();await renderSync();
 };
-window.addEventListener("online",()=>void syncCloud());
+window.addEventListener("online",()=>void refreshCloudReadOnly());
 window.addEventListener("offline",()=>void renderSync());
-setInterval(()=>{if(document.visibilityState==="visible")void syncCloud();},30000);
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")void syncCloud();});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")void refreshCloudReadOnly();});
 async function initializeAccess() {
   renderAccessShell();
   if(invitationToken){showLogin();return;}
@@ -1691,7 +1729,7 @@ document.querySelector("#confirmProgress").onclick=async()=>{
   const button=document.querySelector("#confirmProgress");
   const count=localMode?Object.values(state.records).filter(r=>r.draft).length:(await cloud.engine.operations(cloud.snapshot.projectId)).filter(o=>o.state==="draft").length;
   if(!count){document.querySelector("#saveStatus").textContent="Aucun brouillon à valider.";return;}
-  if(!confirm("Valider les "+count+" saisies de ce projet enregistrées sur cet appareil ? "+(localMode?"Elles resteront locales, car vous n’êtes pas connecté.":"Elles seront partagées avec l’équipe dès que la connexion le permettra.")))return;
+  if(!confirm("Valider les "+count+" saisies de ce projet enregistrées sur cet appareil ? Elles resteront privées jusqu’à ce que vous cliquiez sur « Synchroniser maintenant »."))return;
   button.disabled=true;document.querySelector("#cancelProgress").disabled=true;saving=true;
   try{
     if(localMode){
@@ -1704,8 +1742,8 @@ document.querySelector("#confirmProgress").onclick=async()=>{
       document.querySelector("#saveStatus").textContent="Saisies validées sur cet appareil — non partagées";
     }else{
       await cloud.confirmDrafts();
-      const synced=await syncCloud({refresh:false,closeDialog:true,refreshActivity:true});
-      if(!synced)throw new Error("La synchronisation reste en attente. Réessayez avec le bouton Synchronisation.");
+      project=await cloud.project();state.records=currentFloorRecords();
+      await renderSync();
     }
     render();
   }catch(error){document.querySelector("#saveStatus").textContent="Validation interrompue : "+error.message;}

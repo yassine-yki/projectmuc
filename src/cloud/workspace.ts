@@ -157,6 +157,10 @@ export class CloudWorkspace {
     if(!this.snapshot) throw new Error("Aucun projet ouvert.");
     return this.exclusive(()=>this.engine.confirmDrafts(this.snapshot!.projectId));
   }
+  async discardUnsentTask(taskId: string) {
+    if(!this.snapshot) throw new Error("Aucun projet ouvert.");
+    return this.exclusive(()=>this.engine.discardUnsentTask(this.snapshot!.projectId,taskId));
+  }
   async retryInvalidOperations() {
     if(!this.snapshot)throw new Error("Aucun projet ouvert.");
     const projectId=this.snapshot.projectId;

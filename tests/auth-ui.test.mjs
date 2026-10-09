@@ -39,3 +39,32 @@ test('guest mode cannot edit, persist, confirm or cancel existing drafts', async
   await handlers['#confirmProgress'].onclick();
   await handlers['#cancelProgress'].onclick();
 });
+test('Valider queues drafts locally without invoking synchronization',async()=>{
+  let validated=0,sent=0;
+  const nodes=new Map();const get=id=>{if(!nodes.has(id))nodes.set(id,{disabled:false,textContent:''});return nodes.get(id);};
+  const context=vm.createContext({
+    localMode:false,currentUser:{role:'admin'},saveQueue:Promise.resolve(),
+    cloud:{snapshot:{projectId:'p'},engine:{operations:async()=>[{state:'draft'}]},confirmDrafts:async()=>{validated++;},project:async()=>({})},
+    confirm:()=>true,document:{querySelector:get},state:{records:{}},currentFloorRecords:()=>({}),
+    render:()=>{},renderSync:async()=>{},renderEditor:()=>{},syncCloud:()=>{sent++;},
+  });
+  vm.runInContext(source.slice(source.indexOf('document.querySelector("#confirmProgress").onclick'),source.indexOf('function filterTaskManagement()')),context);
+  await get('#confirmProgress').onclick();
+  assert.equal(validated,1);
+  assert.equal(sent,0);
+});
+test('Excel export reads shared results without sending pending changes',async()=>{
+  let refreshed=0,downloaded=0,sent=0;
+  const nodes=new Map();const get=id=>{if(!nodes.has(id))nodes.set(id,{disabled:false,textContent:'Exporter Excel'});return nodes.get(id);};
+  const context=vm.createContext({
+    cloud:{snapshot:{tasks:[],taskTypes:[]}},currentUser:{role:'admin'},document:{querySelector:get},
+    refreshCloudReadOnly:async()=>{refreshed++;return true;},
+    syncCloud:async()=>{sent++;return true;},
+    downloadProgressWorkbook:async()=>{downloaded++;},cloudErrorMessage:error=>error.message,
+  });
+  vm.runInContext(source.slice(source.indexOf('document.querySelector("#exportExcel").onclick'),source.indexOf('function reportPlanSvg(')),context);
+  await get('#exportExcel').onclick({currentTarget:get('#exportExcel')});
+  assert.equal(refreshed,1);
+  assert.equal(downloaded,1);
+  assert.equal(sent,0);
+});

@@ -66,6 +66,11 @@ export class SyncEngine {
     await this.store.putMany(drafts.map(o=>({...o,state:"pending" as const})));
     return drafts.length;
   }
+  async discardUnsentTask(projectId: string, taskId: string) {
+    const unsent=(await this.operations(projectId)).filter(o=>o.taskId===taskId&&(o.state==="pending"||o.state==="draft"));
+    await this.store.putMany(unsent.map(o=>({...o,state:"discarded" as const})));
+    return unsent.length;
+  }
   async flush(projectId: string) {
     const queue = (await this.operations(projectId)).sort((a,b) => a.baseVersion-b.baseVersion);
     for (const operation of queue) {

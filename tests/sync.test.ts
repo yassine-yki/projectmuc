@@ -149,6 +149,22 @@ test("cancel removes only private drafts and preserves confirmed pending submiss
   await store.close();
 });
 
+test("validated changes stay private until flush and can be withdrawn beforehand",async()=>{
+  const store=new OfflineStore(crypto.randomUUID());const s=snapshot();s.role="admin";await store.saveSnapshot(s);
+  let calls=0;
+  const engine=new SyncEngine(store,"alice","device",async o=>{calls++;return {status:"accepted",result_version:o.baseVersion+1,error_code:null};});
+  await engine.enqueue("p","201:bedroom:paint",record(50),null,undefined,undefined,true);
+  await engine.confirmDrafts("p");
+  assert.equal(calls,0);
+  assert.equal((await engine.records("p"))["201:bedroom:paint"].progress,50);
+  assert.equal(await engine.discardUnsentTask("p",s.tasks[0].id),1);
+  assert.equal((await engine.records("p"))["201:bedroom:paint"].progress,0);
+  await engine.flush("p");
+  assert.equal(calls,0);
+  assert.equal((await engine.operations("p")).length,0);
+  await store.close();
+});
+
 test("one draft can be removed without touching the other local changes",async()=>{
   const store=new OfflineStore(crypto.randomUUID());const s=snapshot();s.role="admin";await store.saveSnapshot(s);
   const engine=new SyncEngine(store,"alice","device",async()=>{throw Error("unused");});
