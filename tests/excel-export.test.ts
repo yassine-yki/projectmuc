@@ -56,7 +56,7 @@ test("Excel export removes graph blocks for hidden tasks and recalculates partia
   assert.doesNotMatch(bedroom,/<c\b[^>]*\br="I21"/); // Réception is hidden / invalid in the source workbook.
 });
 
-test("the legacy Dressage Excel column keeps NOUR INOV progress",async()=>{
+test("the legacy O Excel column keeps NOUR INOV enduit progress and has the corrected heading",async()=>{
   const template=new Uint8Array(await readFile(join(process.cwd(),"public","mixed-use-avancement-template.xlsx")));
   const record=(progress:number)=>({progress,blocked:false,note:"",startDate:"",endDate:""});
   const output=unzipSync(buildProgressWorkbook(template,[
@@ -64,4 +64,8 @@ test("the legacy Dressage Excel column keeps NOUR INOV progress",async()=>{
     {key:"201:bathroom:wall-render-benthami",active:true,record:record(80)},
   ]));
   assert.equal(numericCell(strFromU8(output["xl/worksheets/sheet2.xml"]),"O5"),0.35);
+  const strings=strFromU8(output["xl/sharedStrings.xml"]);
+  assert.match(strings,/<t>Enduit ciment — NOUR INOV<\/t>/);
+  assert.match(strings,/<t>ENDUIT CIMENT<\/t>/);
+  assert.doesNotMatch(strings,/<t>Dressage mur<\/t>/);
 });

@@ -644,6 +644,57 @@ test('PISTACHE schema, RLS and transactional RPCs', async (t) => {
     join public.task_types tt on tt.id=rt.task_type_id
     where rt.project_id=$1 and tt.code='aquapanel-replacement'`,[future])).total,129);
  });
+
+ await t.test('NOUR INOV enduit stays on standard rooms and BENTHAMI dressage covers suites',async()=>{
+  await db.exec('reset role');
+  const oldSuite=await first(`select rt.id,rt.project_id,rt.room_id
+    from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id
+    join public.rooms r on r.id=rt.room_id
+    where tt.zone='bathroom' and tt.code='wall-render' and r.room_type<>'standard'
+    order by r.number limit 1`);
+  assert.ok(oldSuite);
+  await query('update public.room_tasks set progress=48 where id=$1',[oldSuite.id]);
+  const migration=await readFile(new URL('../supabase/migrations/0027_correct_wall_finishes.sql',import.meta.url),'utf8');
+  await db.exec(migration);
+  const nour=await first("select label,group_label from public.task_types where project_id=$1 and zone='bathroom' and code='wall-render'",[oldSuite.project_id]);
+  assert.deepEqual(nour,{label:'Enduit ciment — NOUR INOV',group_label:'Enduit ciment'});
+  const archived=await first('select progress,archived_at from public.room_tasks where id=$1',[oldSuite.id]);
+  assert.equal(archived.progress,48);
+  assert.ok(archived.archived_at);
+  const benthami=await first(`select rt.id,rt.archived_at from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id
+    where rt.room_id=$1 and tt.zone='bathroom' and tt.code='wall-render-benthami'`,[oldSuite.room_id]);
+  assert.ok(benthami);
+  assert.equal(benthami.archived_at,null);
+  await db.exec(migration);
+  assert.equal((await first('select count(*)::int total from public.room_tasks where id=$1',[benthami.id])).total,1);
+
+  const standard=await first(`select rt.id,rt.room_id from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id
+    join public.rooms r on r.id=rt.room_id
+    where rt.project_id=$1 and tt.zone='bathroom' and tt.code='wall-render'
+      and r.room_type='standard' and rt.archived_at is null limit 1`,[oldSuite.project_id]);
+  await query("update public.rooms set room_type='junior' where id=$1",[standard.room_id]);
+  assert.ok((await first('select archived_at from public.room_tasks where id=$1',[standard.id])).archived_at);
+  await query("update public.rooms set room_type='standard' where id=$1",[standard.room_id]);
+  assert.equal((await first('select archived_at from public.room_tasks where id=$1',[standard.id])).archived_at,null);
+
+  await login(admin);
+  const future=(await first('select public.create_mixed_use_project() id')).id;
+  await db.exec('reset role');
+  assert.equal((await first(`select count(*)::int total from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id
+    join public.rooms r on r.id=rt.room_id
+    where rt.project_id=$1 and r.room_type<>'standard' and tt.zone='bathroom'
+      and tt.code='wall-render' and rt.archived_at is null`,[future])).total,0);
+  assert.equal((await first(`select count(*)::int total from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id
+    join public.rooms r on r.id=rt.room_id
+    where rt.project_id=$1 and r.room_type<>'standard' and tt.zone='bathroom'
+      and tt.code='wall-render-benthami' and rt.archived_at is null`,[future])).total,
+    (await first("select count(*)::int total from public.rooms where project_id=$1 and room_type<>'standard'",[future])).total);
+ });
  });
 
 

@@ -9,14 +9,18 @@ test("aquapanel replacement is a separate bedroom task in Cloisons",()=>{
   assert.equal(taskGroup("bedroom",tasks[1].sourceColumn),"Cloisons");
 });
 
-test("BENTHAMI dressage is separate and does not apply to suites",()=>{
+test("NOUR INOV enduit is standard-only while BENTHAMI dressage covers suites",()=>{
   assert.deepEqual(tasksByZone.bathroom.filter(task=>task.id.startsWith("wall-render")).map(task=>task.label),[
-    "Dressage mur — NOUR INOV","Dressage mur — BENTHAMI",
+    "Enduit ciment — NOUR INOV","Dressage mur — BENTHAMI",
   ]);
+  assert.equal(taskGroup("bathroom","O"),"Enduit ciment");
+  assert.equal(taskGroup("bathroom","O_B"),"Dressage");
   assert.equal(taskApplicable("standard","bathroom","wall-render-benthami"),true);
-  assert.equal(taskApplicable("junior","bathroom","wall-render-benthami"),false);
-  assert.equal(taskApplicable("executive","bathroom","wall-render-benthami"),false);
-  assert.equal(taskApplicable("junior","bathroom","wall-render"),true);
+  assert.equal(taskApplicable("junior","bathroom","wall-render-benthami"),true);
+  assert.equal(taskApplicable("executive","bathroom","wall-render-benthami"),true);
+  assert.equal(taskApplicable("standard","bathroom","wall-render"),true);
+  assert.equal(taskApplicable("junior","bathroom","wall-render"),false);
+  assert.equal(taskApplicable("executive","bathroom","wall-render"),false);
 });
 
 test("R+2 room definitions match the workbook", () => {

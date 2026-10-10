@@ -183,6 +183,16 @@ function filterGraphSheet(xml:string,visibleColumns:Set<string>):string {
 export function buildProgressWorkbook(template: Uint8Array, tasks: ExcelProgressTask[], visibleColumns:Iterable<string>=allTaskColumns): Uint8Array {
   const files=unzipSync(template);
   if(!files[TRACKING_SHEET]) throw new Error("La feuille Suivi des Chambres est absente du modèle.");
+  // The legacy O column belongs to NOUR INOV. Correct its old Dressage
+  // headings in the exported copy; BENTHAMI has a separate app task.
+  const stringsPath="xl/sharedStrings.xml";
+  if(files[stringsPath]) {
+    let strings=strFromU8(files[stringsPath]);
+    strings=strings.replaceAll("<t>Dressage mur</t>","<t>Enduit ciment — NOUR INOV</t>")
+      .replaceAll("<t>Dressage</t>","<t>Enduit ciment</t>")
+      .replaceAll("<t>DRESSAGE</t>","<t>ENDUIT CIMENT</t>");
+    files[stringsPath]=strToU8(strings);
+  }
   // Removed graph formulas must not leave stale cell references in Excel's
   // calculation chain. Excel rebuilds this optional index on first open.
   removeCalculationChain(files);
