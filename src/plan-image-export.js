@@ -3,8 +3,8 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 function exportStyle(boundsWidth, boundsHeight) {
   const unit = Math.min(boundsWidth, boundsHeight) / 700;
   return `
-    .dxf-line{fill:none;stroke:#3e4945;stroke-width:${unit * .8}}
-    .dxf-detail{fill:none;stroke:#626d68;stroke-width:${unit * .6}}
+    .dxf-line{fill:none;stroke:#3e4945;stroke-width:1.4;vector-effect:non-scaling-stroke}
+    .dxf-detail{fill:none;stroke:#626d68;stroke-width:1.2;vector-effect:non-scaling-stroke}
     .dxf-annotation{fill:#3c6590;font-weight:500;font-family:Arial,sans-serif}
     .dxf-zone{stroke-width:${unit * 1.3};fill-opacity:.34}
     .dxf-zone.unassigned{fill:#aab8b3;stroke:#397c80;fill-opacity:.24}
