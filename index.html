@@ -104,12 +104,16 @@
             <span class="control-label">Chambre</span>
             <select id="roomSelect" aria-label="Chambre sélectionnée"></select>
           </label>
-
-
-
-
-
-
+          <div class="plan-export-control">
+            <details id="planExportMenu" class="plan-export-menu">
+              <summary>Exporter le plan</summary>
+              <div class="plan-export-options">
+                <button type="button" data-plan-export="png">Image PNG haute définition</button>
+                <button type="button" data-plan-export="svg">Image SVG, nette à tout zoom</button>
+              </div>
+            </details>
+            <span id="planExportStatus" class="plan-export-status" role="status" aria-live="polite"></span>
+          </div>
         </div>
 
 <div class="plan-taskbar">                    <label class="control-group task-control">

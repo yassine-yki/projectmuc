@@ -8,9 +8,9 @@
     <meta name="apple-mobile-web-app-title" content="Projet MUC" />
     <title>Projet MUC — Suivi du chantier</title>
     <link rel="icon" type="image/png" href="/muc-building.png" />
-    <script type="module" crossorigin src="/assets/index-IezhyWGW.js"></script>
+    <script type="module" crossorigin src="/assets/index-DKgcWDYx.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-hePW80VL.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-plndP8gh.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-C_ZeGxzg.css">
   </head>
   <body>
     <dialog class="project-dialog access-dialog" id="loginDialog" aria-labelledby="loginTitle">
@@ -106,12 +106,16 @@
             <span class="control-label">Chambre</span>
             <select id="roomSelect" aria-label="Chambre sélectionnée"></select>
           </label>
-
-
-
-
-
-
+          <div class="plan-export-control">
+            <details id="planExportMenu" class="plan-export-menu">
+              <summary>Exporter le plan</summary>
+              <div class="plan-export-options">
+                <button type="button" data-plan-export="png">Image PNG haute définition</button>
+                <button type="button" data-plan-export="svg">Image SVG, nette à tout zoom</button>
+              </div>
+            </details>
+            <span id="planExportStatus" class="plan-export-status" role="status" aria-live="polite"></span>
+          </div>
         </div>
 
 <div class="plan-taskbar">                    <label class="control-group task-control">

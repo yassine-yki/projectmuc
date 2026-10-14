@@ -9,6 +9,7 @@ import { cloudConfigured, login, logout, restoreWorkspace, acceptInvitation } fr
 import { editable, trackingTypeVisible } from "./cloud/types.js";
 import { openProjectPhotos, openTaskPhotos } from "./task-photos.js";
 import { findPinnedTask } from "./task-pin.js";
+import { downloadPlanImage } from "./plan-image-export.js";
 
 
 
@@ -842,6 +843,28 @@ document.addEventListener("keydown", (event) => {
   if (marker && ["Enter", " "].includes(event.key)) {
     event.preventDefault();
     selectRoom(Number(marker.dataset.room));
+  }
+});
+
+document.querySelector("#planExportMenu").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-plan-export]");
+  if (!button) return;
+  const menu = document.querySelector("#planExportMenu");
+  const status = document.querySelector("#planExportStatus");
+  const floor = elements.floorSelect.selectedOptions[0]?.textContent?.trim() || state.selectedFloor;
+  const zone = state.selectedZone === "bathroom" ? "SDB" : state.selectedZone === "loggia" ? "Loggia" : "Chambre";
+  const task = elements.taskSelect.selectedOptions[0]?.textContent?.trim() || "avancement";
+  const name = `MUC-plan-${floor}-${zone}-${task}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/-$/, "");
+  menu.open = false;
+  button.disabled = true;
+  status.textContent = "Préparation de l'image…";
+  try {
+    await downloadPlanImage(elements.dxfPlan, button.dataset.planExport, name);
+    status.textContent = button.dataset.planExport === "svg" ? "Plan vectoriel téléchargé." : "Image haute définition téléchargée.";
+  } catch (error) {
+    status.textContent = error.message || "Impossible d'exporter le plan.";
+  } finally {
+    button.disabled = false;
   }
 });
 
