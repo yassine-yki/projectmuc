@@ -61,6 +61,27 @@ test('PISTACHE schema, RLS and transactional RPCs', async (t) => {
     await reject('select public.set_project_member($1,$2,$3,$4)', [project, worker, 'admin', 'active'], /project_admin_required/);
     await reject("update public.project_members set role='admin' where user_id=$1", [worker], /permission denied/);
   });
+  await t.test('module access is restricted by the server and future tools are denied', async () => {
+    await db.exec('reset role');
+    await db.exec(await readFile(new URL('../supabase/migrations/0028_module_access.sql', import.meta.url), 'utf8'));
+    await login(worker);
+    const equipment = (await first('select public.get_tool_data($1,$2) as payload', [project, 'equipment'])).payload;
+    assert.equal(equipment.length, 404);
+    await reject('select public.set_member_tools($1,$2,$3)', [project, worker, ['rooms']], /project_admin_required/);
+    await login(admin);
+    await query('select public.set_member_tools($1,$2,$3)', [project, worker, ['rooms']]);
+    await login(worker);
+    await reject('select public.get_tool_data($1,$2)', [project, 'equipment'], /tool_access_denied/);
+    await reject('select public.get_tool_data($1,$2)', [project, 'future-module'], /tool_access_denied/);
+    await db.exec('reset role');
+    await db.exec(await readFile(new URL('../supabase/migrations/0028_module_access.sql', import.meta.url), 'utf8'));
+    await login(worker);
+    await reject('select public.get_tool_data($1,$2)', [project, 'equipment'], /tool_access_denied/);
+    await login(admin);
+    await query('select public.set_member_tools($1,$2,$3)', [project, worker, ['rooms', 'equipment']]);
+    await login(worker);
+    assert.equal((await first('select public.get_tool_data($1,$2) as payload', [project, 'equipment'])).payload.length, 404);
+  });
   await t.test('task creation works in both directions and restoration preserves progress', async () => {
     await login(admin);
     floor = (await first("insert into public.floors(project_id,code,label) values ($1,'r2','R+2') returning id", [project])).id;

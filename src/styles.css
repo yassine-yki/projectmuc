@@ -54,7 +54,7 @@ body { --green: #426b39; --green-dark: #31512c; --surface-soft: #f3f5ef; }
 .page-heading { margin-bottom: 24px; }
 .page-heading p { color: var(--muted); font-size: 14px; margin-top: 8px; max-width: 740px; }
 .team-list { display: grid; gap: 12px; }
-.team-member { display: grid; grid-template-columns: minmax(0,1fr) 170px auto; align-items: center; gap: 18px; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.team-member { display: grid; grid-template-columns: minmax(0,1fr) 155px minmax(190px,240px) 110px; align-items: center; gap: 14px; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
 .team-member p, .team-member small { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .team-member h3 { font-size: 17px; margin-bottom: 5px; }
 .team-member select { padding: 9px; }

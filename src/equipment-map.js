@@ -1,7 +1,12 @@
 import { cleanDxfText, roomNumberFromText } from "./dxf-identification.js";
-import { EQUIPMENT_LABELS, EQUIPMENT_RECORDS, equipmentIsDefined, equipmentRecord } from "./equipment-data.js";
 import { EQUIPMENT_MOTIF_INK, equipmentVisuals } from "./equipment-visuals.js";
 import { ROOMS_BY_FLOOR } from "./project-data.js";
+
+const EQUIPMENT_LABELS = { headboard: "Headboard", wardrobe: "Armoire", bar: "Bar", vanity: "Vanity" };
+let equipmentRecords = [];
+let recordIndex = new Map();
+const equipmentRecord = (equipment, room) => recordIndex.get(`${equipment}:${room}`) || null;
+const equipmentIsDefined = (record) => Boolean(record?.productCode && record?.tipExcel);
 
 const UNDEFINED_COLOR = "#f5ccd2";
 const EXECUTIVE_COLOR = "#555c58";
@@ -109,7 +114,7 @@ function buildModel(dxf) {
 }
 
 function visualMapFor(equipment) {
-  const tips = [...new Set(EQUIPMENT_RECORDS.filter((record) => record.equipment === equipment && equipmentIsDefined(record)).map((record) => record.tipExcel))].sort();
+  const tips = [...new Set(equipmentRecords.filter((record) => record.equipment === equipment && equipmentIsDefined(record)).map((record) => record.tipExcel))].sort();
   return equipmentVisuals(tips);
 }
 
@@ -524,7 +529,10 @@ function initialize() {
   document.querySelector("#exportEquipmentPdfs").addEventListener("click", () => { void exportEquipmentPdfs(); });
 }
 
-export async function openEquipmentMap(definition) {
+export async function openEquipmentMap(definition, records) {
+  if (!Array.isArray(records)) throw new Error("Données d'équipement indisponibles.");
+  equipmentRecords = records;
+  recordIndex = new Map(records.map(record => [`${record.equipment}:${record.room}`, record]));
   projectDefinition = definition;
   initialize();
   const select = document.querySelector("#equipmentFloorSelect");

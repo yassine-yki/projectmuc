@@ -4,9 +4,9 @@ export type CloudTask = {
   id: string; key: string; floorCode?: string; version: number; record: ProgressRecord; active: boolean;
 };
 export type Assignment = { id: string; room_task_id: string; assignee_id: string; ended_at: string | null };
-export type Member = { user_id: string; role: Role; status: string; name: string };
+export type Member = { user_id: string; role: Role; status: string; name: string; allowed_tools?: string[] };
 export type Snapshot = {
-  projectId: string; name: string; userId: string; role: Role;
+  projectId: string; name: string; userId: string; role: Role; allowedTools?: string[];
   taskTypes?: {id:string;code:string;zone:string;label:string;group_label?:string;source_column?:string;sort_order?:number;hidden?:boolean;hidden_user_ids?:string[]}[];
   tasks: CloudTask[]; assignments: Assignment[]; members: Member[]; cachedAt: string;
 };

@@ -10,6 +10,7 @@ import { editable, trackingTypeVisible } from "./cloud/types.js";
 import { openProjectPhotos, openTaskPhotos } from "./task-photos.js";
 import { findPinnedTask } from "./task-pin.js";
 import { downloadPlanImage } from "./plan-image-export.js";
+import { availableTools, canOpenTool } from "./tool-access.js";
 
 
 
@@ -31,6 +32,10 @@ let taskManagementZone = "bedroom";
 let invitationToken=new URLSearchParams(location.hash.slice(1)).get("invite") || "";
 if(invitationToken) history.replaceState(null,"",location.pathname+location.search);
 let registrationMode = Boolean(invitationToken);
+
+function toolAccess() {
+  return localMode ? {role:"viewer",allowedTools:["rooms"]} : cloud?.snapshot || null;
+}
 
 function persistProject(key, correction = null, previousRecord = null) {
   if(localMode || !currentUser || currentUser.role==="viewer") return Promise.resolve();
@@ -1121,7 +1126,8 @@ async function openProject(projectId) {
   render();
   hideAppLoading();
   if(!localMode){await renderSync();void refreshCloudReadOnly();}
-  document.querySelector("#trackingModeDialog").showModal();
+  if(availableTools(toolAccess()).length===1) await activateTrackingMode("rooms");
+  else document.querySelector("#trackingModeDialog").showModal();
 }
 
 async function changeFloor(floorId) {
@@ -1161,6 +1167,7 @@ elements.projectDialog.addEventListener("cancel", (event) => {
 function renderAccessShell() {
   const admin = currentUser?.role === "admin";
   const roomsMode=trackingMode==="rooms",equipmentMode=trackingMode==="equipment";
+  const permittedTools=availableTools(toolAccess());
   document.body.dataset.role = localMode ? "viewer" : !accessReady ? "signed-out" : currentUser?.role || "signed-out";
   document.querySelector("#mainWorkspace").hidden = !accessReady || !roomsMode || (!localMode && admin && adminPage !== "dashboard");
   document.querySelector("#equipmentWorkspace").hidden = !accessReady || !equipmentMode;
@@ -1171,7 +1178,8 @@ function renderAccessShell() {
   document.querySelector("#adminPhotos").hidden = !roomsMode || !admin || adminPage !== "photos" || localMode;
   document.querySelector("#profileButton").hidden = !accessReady || localMode;
   document.querySelector("#signInButton").hidden = !cloudConfigured || !localMode || !accessReady;
-  document.querySelector("#modeSwitchButton").hidden = !accessReady;
+  document.querySelector("#modeSwitchButton").hidden = !accessReady || permittedTools.length < 2;
+  document.querySelectorAll("#trackingModeDialog [data-tracking-mode]").forEach(button=>{button.hidden=!permittedTools.includes(button.dataset.trackingMode);});
   document.querySelector("#syncButton").hidden = !cloud || !roomsMode;
   document.querySelector("#draftActions").hidden=!accessReady || !roomsMode || localMode || currentUser?.role==="viewer";
   document.querySelectorAll("[data-admin-only]").forEach(element=>element.hidden=!admin || localMode);
@@ -1295,6 +1303,11 @@ function refreshCloudReadOnly() {
       await workspace.exclusive(()=>workspace.refresh(workspace.snapshot.projectId));
       if(cloud!==workspace)return false;
       currentUser={...workspace.user,role:workspace.snapshot.role};
+      if(trackingMode && !canOpenTool(toolAccess(),trackingMode)) {
+        trackingMode="rooms";
+        await loadConfiguredPlan(activeProjectDefinition);
+        elements.projectSubtitle.textContent=activeProjectDefinition.name+" — "+(floorDefinition()?.label || state.selectedFloor);
+      }
       project=await workspace.project();state.records=currentFloorRecords();
       if(!roomAccessible(state.selectedRoom))state.selectedRoom=rooms.find(r=>roomAccessible(r.number))?.number ?? null;
       render();await renderSync();
@@ -1315,6 +1328,11 @@ async function syncCloud({refresh=true,closeDialog=false,refreshActivity=false}=
     await workspace.sync(refresh);
     if(cloud!==workspace) return;
     currentUser={...workspace.user,role:workspace.snapshot.role};
+    if(trackingMode && !canOpenTool(toolAccess(),trackingMode)) {
+      trackingMode="rooms";
+      await loadConfiguredPlan(activeProjectDefinition);
+      elements.projectSubtitle.textContent=activeProjectDefinition.name+" — "+(floorDefinition()?.label || state.selectedFloor);
+    }
     project=await workspace.project();state.records=currentFloorRecords();
     if(!roomAccessible(state.selectedRoom)) state.selectedRoom=rooms.find(r=>roomAccessible(r.number))?.number ?? null;
     render(); await renderSync();
@@ -1385,7 +1403,8 @@ async function renderAdminPage() {
       const role=member?.role || "";
       const status=member?.status || "inactive";
       const statusText=member ? (status==="active"?"Actif":"Désactivé") : "Non affecté au projet";
-      return '<article class="team-member" data-user-id="'+person.id+'"><div><h3>'+escapeSvgText(person.name)+'</h3><p>'+escapeSvgText(statusText)+'</p><small>'+escapeSvgText(person.id)+'</small></div><label class="field compact-field"><span>Rôle</span><select data-member-role><option value="">À définir</option><option value="worker" '+(role==="worker"?"selected":"")+'>Intervenant</option><option value="viewer" '+(role==="viewer"?"selected":"")+'>Lecture seule</option><option value="admin" '+(role==="admin"?"selected":"")+'>Administrateur</option></select></label><label class="field compact-field"><span>Accès</span><select data-member-status '+(!member?"disabled":"")+'><option value="active" '+(status==="active"?"selected":"")+'>Actif</option><option value="inactive" '+(status==="inactive"?"selected":"")+'>Désactivé</option></select></label></article>';
+      const equipmentAllowed=role==="admin" || member?.allowed_tools?.includes("equipment");
+      return '<article class="team-member" data-user-id="'+person.id+'"><div><h3>'+escapeSvgText(person.name)+'</h3><p>'+escapeSvgText(statusText)+'</p><small>'+escapeSvgText(person.id)+'</small></div><label class="field compact-field"><span>Rôle</span><select data-member-role><option value="">À définir</option><option value="worker" '+(role==="worker"?"selected":"")+'>Intervenant</option><option value="viewer" '+(role==="viewer"?"selected":"")+'>Lecture seule</option><option value="admin" '+(role==="admin"?"selected":"")+'>Administrateur</option></select></label><label class="field compact-field"><span>Outils accessibles</span><select data-member-tools '+(!member||role==="admin"?"disabled":"")+'><option value="rooms" '+(!equipmentAllowed?"selected":"")+'>Suivi des chambres uniquement</option><option value="all" '+(equipmentAllowed?"selected":"")+'>Chambres + équipements</option></select></label><label class="field compact-field"><span>Accès</span><select data-member-status '+(!member?"disabled":"")+'><option value="active" '+(status==="active"?"selected":"")+'>Actif</option><option value="inactive" '+(status==="inactive"?"selected":"")+'>Désactivé</option></select></label></article>';
     }).join("") || '<p class="empty-state">Aucun compte créé pour le moment.</p>';
     const scope=await cloud.assignmentScope();
     const activeFloors=scope.floors.filter(f=>!f.archived_at).sort((a,b)=>a.code.localeCompare(b.code,"fr",{numeric:true}));
@@ -1445,7 +1464,7 @@ document.querySelector("#assignmentForm").onsubmit=async(event)=>{
   } catch(error){document.querySelector("#assignmentMessage").classList.remove("success");document.querySelector("#assignmentMessage").textContent=error.message;}finally{button.disabled=false;button.textContent=label;}
 };
 document.querySelector("#memberDirectory").onchange=async(event)=>{
-  const control=event.target.closest("[data-member-role],[data-member-status]");
+  const control=event.target.closest("[data-member-role],[data-member-status],[data-member-tools]");
   if(!control)return;
   const row=control.closest("[data-user-id]");
   const role=row.querySelector("[data-member-role]").value;
@@ -1454,9 +1473,10 @@ document.querySelector("#memberDirectory").onchange=async(event)=>{
   if(!role){document.querySelector("#teamMessage").classList.remove("success");document.querySelector("#teamMessage").textContent="Choisissez un rôle pour activer ce compte dans le projet.";return;}
   control.disabled=true;
   try {
-    await cloud.member(row.dataset.userId,role,statusControl.disabled?"active":status);
+    if(control.matches("[data-member-tools]")) await cloud.memberTools(row.dataset.userId,control.value==="all"?["rooms","equipment"]:["rooms"]);
+    else await cloud.member(row.dataset.userId,role,statusControl.disabled?"active":status);
     await renderAdminPage();
-    const message="Membre mis à jour.";
+    const message=control.matches("[data-member-tools]")?"Accès aux outils mis à jour.":"Membre mis à jour.";
     document.querySelector("#teamMessage").textContent=message;
     document.querySelector("#saveStatus").textContent=message;
     document.querySelector("#teamMessage").classList.add("success");
@@ -1960,16 +1980,30 @@ for (const [id, readOnly] of [["addTaskPhoto", false], ["viewTaskPhotos", true]]
 
 async function activateTrackingMode(mode) {
   if(mode!=="rooms"&&mode!=="equipment")return;
-  trackingMode=mode;adminPage="dashboard";
-  document.querySelector("#trackingModeDialog").close();
-  renderAccessShell();
-  if(mode==="rooms") {
+  if(!canOpenTool(toolAccess(),mode))return;
+  const dialog=document.querySelector("#trackingModeDialog");
+  const errorMessage=document.querySelector("#trackingModeError");
+  errorMessage.hidden=true;
+  if(mode==="equipment") {
+    showAppLoading("Chargement du repérage des équipements…");
+    try {
+      const records=await cloud.toolData("equipment");
+      const {openEquipmentMap}=await import("./equipment-map.js");
+      trackingMode=mode;adminPage="dashboard";
+      dialog.close();renderAccessShell();
+      elements.projectSubtitle.textContent=activeProjectDefinition.name+" — Repérage des équipements";
+      await openEquipmentMap(activeProjectDefinition,records);
+    } catch(error) {
+      trackingMode=null;renderAccessShell();
+      errorMessage.textContent=error.message || "Le repérage des équipements est indisponible.";
+      errorMessage.hidden=false;
+      if(!dialog.open)dialog.showModal();
+    } finally {hideAppLoading();}
+  } else {
+    trackingMode=mode;adminPage="dashboard";
+    dialog.close();renderAccessShell();
     elements.projectSubtitle.textContent=activeProjectDefinition.name+" — "+(floorDefinition()?.label || state.selectedFloor);
     await loadConfiguredPlan(activeProjectDefinition);requestAnimationFrame(fitPlan);
-  } else if(mode==="equipment") {
-    elements.projectSubtitle.textContent=activeProjectDefinition.name+" — Repérage des équipements";
-    showAppLoading("Chargement du repérage des équipements…");
-    try{const {openEquipmentMap}=await import("./equipment-map.js");await openEquipmentMap(activeProjectDefinition);}finally{hideAppLoading();}
   }
 }
 document.querySelector("#trackingModeDialog").addEventListener("cancel",event=>event.preventDefault());

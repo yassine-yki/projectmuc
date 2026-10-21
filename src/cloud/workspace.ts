@@ -110,7 +110,7 @@ export class CloudWorkspace {
         record:{confirmedDay:t.confirmed_day,confirmedProgress:t.progress,lockedProgress:t.locked_progress??t.progress,progress:t.progress,blocked:t.blocked,note:t.note,startDate:t.start_date||"",endDate:t.end_date||""} }];
     });
     // RLS and the RPC remain authoritative; this snapshot is only a UI/cache view.
-    const snapshot: Snapshot = {projectId,name:project.name,userId:this.user.id,role:own.role,tasks:cloudTasks,taskTypes:visibleTypes,
+    const snapshot: Snapshot = {projectId,name:project.name,userId:this.user.id,role:own.role,allowedTools:own.allowed_tools,tasks:cloudTasks,taskTypes:visibleTypes,
       assignments:assignments.filter(a=>!a.ended_at),members,cachedAt:new Date().toISOString()};
     await this.store.saveSnapshot(snapshot);
     this.snapshot=snapshot;
@@ -210,6 +210,30 @@ export class CloudWorkspace {
     if (!navigator.onLine) throw new Error("Une connexion est nécessaire pour gérer les membres.");
     await unwrap(client!.rpc("set_project_member",{p_project_id:this.snapshot!.projectId,p_user_id:userId,p_role:role,p_status:status}));
     await this.exclusive(()=>this.refresh(this.snapshot!.projectId));
+  }
+  async memberTools(userId: string, tools: string[]) {
+    if (!navigator.onLine) throw new Error("Une connexion est nécessaire pour gérer les accès.");
+    try {
+      await unwrap(client!.rpc("set_member_tools", {p_project_id:this.snapshot!.projectId,p_user_id:userId,p_allowed_tools:tools}));
+    } catch (error) {
+      if (/schema cache|could not find the function/i.test((error as Error).message))
+        throw new Error("Appliquez d’abord la migration Supabase 0028 pour gérer l’accès aux outils.");
+      throw error;
+    }
+    await this.exclusive(()=>this.refresh(this.snapshot!.projectId));
+  }
+  async toolData(tool: string): Promise<any[]> {
+    if (!navigator.onLine) throw new Error("Une connexion est nécessaire pour ouvrir cet outil.");
+    let data:any[] | null;
+    try {
+      data=await unwrap<any[] | null>(client!.rpc("get_tool_data", {p_project_id:this.snapshot!.projectId,p_tool:tool}));
+    } catch (error) {
+      if (/schema cache|could not find the function/i.test((error as Error).message))
+        throw new Error("Appliquez d’abord la migration Supabase 0028 pour ouvrir cet outil.");
+      throw error;
+    }
+    if (!Array.isArray(data)) throw new Error("Données de l’outil indisponibles. Appliquez la mise à jour Supabase.");
+    return data;
   }
   async manageTaskType(id: string, label: string, hidden: boolean, hiddenUsers: string[]) {
     if (!navigator.onLine) throw new Error("Une connexion est nécessaire pour gérer les tâches.");
