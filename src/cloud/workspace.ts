@@ -120,7 +120,9 @@ export class CloudWorkspace {
     });
     // RLS and the RPC remain authoritative; this snapshot is only a UI/cache view.
     const snapshot: Snapshot = {projectId,name:project.name,userId:this.user.id,role:own.role,allowedTools:own.allowed_tools,
-      personalHiddenTaskTypeIds:personalPreferences.filter(preference=>preference.hidden).map(preference=>preference.task_type_id),tasks:cloudTasks,taskTypes:visibleTypes,
+      personalHiddenTaskTypeIds:personalPreferences.filter(preference=>preference.hidden).map(preference=>preference.task_type_id),
+      personalShownTaskTypeIds:personalPreferences.filter(preference=>preference.hidden===false).map(preference=>preference.task_type_id),
+      tasks:cloudTasks,taskTypes:visibleTypes,
       assignments:assignments.filter(a=>!a.ended_at),members,cachedAt:new Date().toISOString()};
     await this.store.saveSnapshot(snapshot);
     this.snapshot=snapshot;
@@ -250,18 +252,29 @@ export class CloudWorkspace {
     await unwrap(client!.rpc("manage_task_type",{p_id:id,p_label:label,p_hidden:hidden,p_hidden_user_ids:hiddenUsers}));
     await this.exclusive(()=>this.refresh(this.snapshot!.projectId));
   }
-  async setMyTaskVisibility(taskTypeId: string, visible: boolean) {
+  async setMyTaskVisibility(changes: {taskTypeId: string; visible: boolean}[]) {
     if (!navigator.onLine) throw new Error("Une connexion est nécessaire pour régler vos tâches.");
+    if (!changes.length) return;
     try {
-      await unwrap(client!.rpc("set_my_task_visibility", {
-        p_project_id:this.snapshot!.projectId,p_task_type_id:taskTypeId,p_visible:visible,
+      await unwrap(client!.rpc("set_my_task_visibility_bulk", {
+        p_project_id:this.snapshot!.projectId,
+        p_changes:changes.map(change=>({task_type_id:change.taskTypeId,visible:change.visible})),
       }));
     } catch(error) {
       if (/schema cache|could not find the function/i.test((error as Error).message))
-        throw new Error("Appliquez d’abord la migration Supabase 0030 pour régler vos tâches.");
+        throw new Error("Appliquez d’abord la migration Supabase 0031 pour régler vos tâches.");
       throw error;
     }
-    await this.exclusive(()=>this.refresh(this.snapshot!.projectId));
+    const snapshot=this.snapshot!;
+    const hidden=new Set(snapshot.personalHiddenTaskTypeIds || []);
+    const shown=new Set(snapshot.personalShownTaskTypeIds || []);
+    for(const change of changes) {
+      hidden.delete(change.taskTypeId);shown.delete(change.taskTypeId);
+      (change.visible ? shown : hidden).add(change.taskTypeId);
+    }
+    snapshot.personalHiddenTaskTypeIds=[...hidden];
+    snapshot.personalShownTaskTypeIds=[...shown];
+    await this.store.saveSnapshot(snapshot);
   }
   async managementTaskTypes() {
     if (!navigator.onLine) throw new Error("Une connexion est nécessaire pour afficher toutes les tâches à gérer.");

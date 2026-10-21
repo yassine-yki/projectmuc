@@ -10,9 +10,11 @@ test("OFF hides tracking for every role even when a cached task type remains rea
   assert.equal(trackingTypeVisible({hidden:true},"worker"),false);
   assert.equal(trackingTypeVisible({hidden:false,hidden_user_ids:["admin"]},"admin"),false);
   assert.equal(trackingTypeVisible({hidden:false,hidden_user_ids:["admin"]},"worker"),true);
-  assert.equal(personalTrackingTypeVisible({id:"screed"},"worker",["screed"]),false);
-  assert.equal(personalTrackingTypeVisible({id:"screed"},"other",[]),true);
-  assert.equal(personalTrackingTypeVisible({id:"screed",hidden:true},"worker",[]),false);
+  assert.equal(personalTrackingTypeVisible({id:"screed"},"worker",["screed"],[],true),false);
+  assert.equal(personalTrackingTypeVisible({id:"screed"},"other",[],[],true),true);
+  assert.equal(personalTrackingTypeVisible({id:"paint"},"worker",[],[],false),false);
+  assert.equal(personalTrackingTypeVisible({id:"paint"},"worker",[],["paint"],false),true);
+  assert.equal(personalTrackingTypeVisible({id:"screed",hidden:true},"worker",[],[],true),false);
 });
 const record=(progress=0)=>({progress,blocked:false,note:"",startDate:"",endDate:""});
 const snapshot=():Snapshot=>({projectId:"p",name:"Projet",userId:"alice",role:"worker",cachedAt:new Date().toISOString(),

@@ -777,6 +777,41 @@ test('PISTACHE schema, RLS and transactional RPCs', async (t) => {
   await query('select public.set_my_task_visibility($1,$2,$3)',[personalProject,assigned.type_id,true]);
   assert.equal((await query('select * from public.member_task_preferences where project_id=$1',[personalProject])).length,0);
  });
+
+ await t.test('workers save multiple personal choices atomically with explicit ON and OFF',async()=>{
+  await db.exec('reset role');
+  await db.exec(await readFile(new URL('../supabase/migrations/0031_batch_worker_task_preferences.sql',import.meta.url),'utf8'));
+  await login(admin);
+  const personalProject=(await first('select public.create_mixed_use_project() id')).id;
+  await query('select public.set_project_member($1,$2,$3,$4)',[personalProject,worker,'worker','active']);
+  const types=await query(`select id type_id,code,label from public.list_task_types_for_management($1)
+    where zone='bedroom' and code in ('partitions','paint')`,[personalProject]);
+  const chosen=new Map(types.map(type=>[type.code,type]));
+  const partitions=chosen.get('partitions'), paint=chosen.get('paint');
+  assert.ok(partitions && paint);
+  await query('select public.manage_task_type($1,$2,$3,$4)',[paint.type_id,paint.label,false,[]]);
+  for(const type of [partitions,paint]) {
+    const task=await first('select id from public.room_tasks where project_id=$1 and task_type_id=$2 and archived_at is null limit 1',[personalProject,type.type_id]);
+    await query('select public.assign_task($1,$2)',[task.id,worker]);
+  }
+  const changes=[{task_type_id:partitions.type_id,visible:false},{task_type_id:paint.type_id,visible:true}];
+  await login(worker);
+  await query('select public.set_my_task_visibility_bulk($1,$2::jsonb)',[personalProject,JSON.stringify(changes)]);
+  let rows=await query('select task_type_id,hidden from public.member_task_preferences where project_id=$1',[personalProject]);
+  assert.equal(rows.length,2);
+  assert.equal(rows.find(row=>row.task_type_id===partitions.type_id).hidden,true);
+  assert.equal(rows.find(row=>row.task_type_id===paint.type_id).hidden,false);
+  await reject('select public.set_my_task_visibility_bulk($1,$2::jsonb)',
+    [personalProject,JSON.stringify([...changes,{task_type_id:crypto.randomUUID(),visible:false}])],/assigned_visible_task_required/);
+  rows=await query('select task_type_id,hidden from public.member_task_preferences where project_id=$1',[personalProject]);
+  assert.equal(rows.length,2);
+  await query('select public.set_my_task_visibility_bulk($1,$2::jsonb)',[personalProject,JSON.stringify([
+    {task_type_id:partitions.type_id,visible:true},{task_type_id:paint.type_id,visible:false}
+  ])]);
+  rows=await query('select task_type_id,hidden from public.member_task_preferences where project_id=$1',[personalProject]);
+  assert.equal(rows.find(row=>row.task_type_id===partitions.type_id).hidden,false);
+  assert.equal(rows.find(row=>row.task_type_id===paint.type_id).hidden,true);
+ });
  });
 
 

@@ -45,11 +45,42 @@ test('worker task settings list only their assigned types and preserve personall
    currentUser:{id:'worker',role:'worker'},document:{querySelector:()=>node},
    taskTypeOrder:()=>0,escapeSvgText:value=>value,
  });
- vm.runInContext(source.slice(source.indexOf('function renderMyTasksDialog()'),source.indexOf('document.querySelector("#myTasksButton").onclick')),context);
+ vm.runInContext(source.slice(source.indexOf('let myTaskOriginal='),source.indexOf('document.querySelector("#myTasksButton").onclick')),context);
+ vm.runInContext('myTaskDraft.set("partitions-type", false)',context);
  vm.runInContext('renderMyTasksDialog()',context);
  assert.match(node.innerHTML,/Cloisons chambre/);
  assert.match(node.innerHTML,/value="off" selected/);
  assert.doesNotMatch(node.innerHTML,/Chape chambre/);
+});
+test('worker task choices wait for Enregistrer and are sent together',async()=>{
+ const nodes=new Map();
+ const node=id=>{if(!nodes.has(id))nodes.set(id,{innerHTML:'',textContent:'',disabled:false,showModal(){},close(){}});return nodes.get(id);};
+ const saved=[];
+ const snapshot={
+   taskTypes:[{id:'partitions',zone:'bedroom',code:'partitions',label:'Cloisons chambre'},
+     {id:'paint',zone:'bedroom',code:'paint',label:'Peinture'}],
+   tasks:[{id:'t1',key:'201:bedroom:partitions',active:true},{id:'t2',key:'201:bedroom:paint',active:true}],
+   assignments:[{room_task_id:'t1',assignee_id:'worker',ended_at:null},{room_task_id:'t2',assignee_id:'worker',ended_at:null}],
+   personalHiddenTaskTypeIds:[],personalShownTaskTypeIds:[],
+ };
+ const context=vm.createContext({
+   cloud:{snapshot,setMyTaskVisibility:async changes=>{saved.push(JSON.stringify(changes));}},
+   currentUser:{id:'worker',role:'worker'},document:{querySelector:node},
+   taskTypeOrder:()=>0,escapeSvgText:value=>value,render:()=>{},
+   defaultTrackingTaskVisible:(zone,code)=>code==='partitions',
+   personalTrackingTypeVisible:(type,user,hidden,shown,byDefault)=>!hidden.includes(type.id)&&(shown.includes(type.id)||byDefault),
+ });
+ vm.runInContext(source.slice(source.indexOf('let myTaskOriginal='),source.indexOf('document.querySelector("#logoutButton").onclick')),context);
+ node('#myTasksButton').onclick();
+ assert.match(node('#myTasksList').innerHTML,/Peinture/);
+ assert.match(node('#myTasksList').innerHTML,/value="off" selected/);
+ node('#myTasksList').onchange({target:{closest:()=>({dataset:{myTaskType:'paint'},value:'on'})}});
+ assert.equal(saved.length,0);
+ assert.equal(node('#saveMyTasks').disabled,false);
+ await node('#saveMyTasks').onclick();
+ assert.equal(saved.length,1);
+ assert.equal(saved[0],JSON.stringify([{taskTypeId:'paint',visible:true}]));
+ assert.equal(node('#saveMyTasks').disabled,true);
 });
 test('guest mode cannot edit, persist, confirm or cancel existing drafts', async()=>{
   const context=vm.createContext({localMode:true,currentUser:{role:'viewer'},Promise});

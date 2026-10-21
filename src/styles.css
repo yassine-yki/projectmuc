@@ -655,7 +655,9 @@ body .brand-mark { background: var(--green-dark); border-radius: 18px 5px 18px 5
 .my-task-row strong { font-size: 14px; }
 .my-task-row small { color: var(--muted); font-size: 12px; }
 .my-task-row select { width: 82px; flex: none; padding: 7px; }
-#myTasksMessage { margin: 0 22px 20px; font-size: 13px; font-weight: 650; color: var(--green-dark); }
+.my-tasks-actions { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 22px; background: var(--surface); border-top: 1px solid var(--line); }
+.my-tasks-actions .button { flex: none; }
+#myTasksMessage { margin: 0; font-size: 13px; font-weight: 650; color: var(--green-dark); }
 
 @media (min-width: 821px) {
   body { display: flex; flex-direction: column; }

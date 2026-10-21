@@ -507,8 +507,10 @@ function currentTasks(zone=state.selectedZone) {
   const base=tasksByZone[zone];
   if(localMode || !cloud?.snapshot?.taskTypes) return base.filter(task=>defaultTrackingTaskVisible(zone,task.id));
   const personallyHidden=currentUser?.role==="worker" ? cloud.snapshot.personalHiddenTaskTypeIds || [] : [];
+  const personallyShown=currentUser?.role==="worker" ? cloud.snapshot.personalShownTaskTypeIds || [] : [];
   return base.flatMap(task=>{
-    const type=cloud.snapshot.taskTypes.find(t=>t.zone===zone && t.code===task.id && personalTrackingTypeVisible(t,currentUser?.id || cloud.snapshot.userId,personallyHidden));
+    const type=cloud.snapshot.taskTypes.find(t=>t.zone===zone && t.code===task.id
+      && (currentUser?.role!=="worker" || personalTrackingTypeVisible(t,currentUser.id,personallyHidden,personallyShown,defaultTrackingTaskVisible(t.zone,t.code))));
     return type ? [{...task,label:type.label}] : [];
   });
 }
@@ -1644,6 +1646,12 @@ document.querySelector("#profileButton").onclick=()=>{
   document.querySelector("#profileDialog").showModal();
 };
 document.querySelector("#closeProfile").onclick=()=>document.querySelector("#profileDialog").close();
+let myTaskOriginal=new Map();
+let myTaskDraft=new Map();
+function updateMyTasksSaveButton() {
+  const dirty=[...myTaskDraft].some(([id,visible])=>myTaskOriginal.get(id)!==visible);
+  document.querySelector("#saveMyTasks").disabled=!dirty;
+}
 function renderMyTasksDialog() {
   const snapshot=cloud?.snapshot;
   if(!snapshot || currentUser?.role!=="worker")return;
@@ -1658,7 +1666,6 @@ function renderMyTasksDialog() {
     const type=typeByKey.get(`${zone}:${code}`);
     if(type)assignedCounts.set(type.id,(assignedCounts.get(type.id)||0)+1);
   }
-  const hidden=new Set(snapshot.personalHiddenTaskTypeIds || []);
   const assignedTypes=[...(snapshot.taskTypes || [])].filter(type=>assignedCounts.has(type.id))
     .sort((a,b)=>({bedroom:0,bathroom:1,loggia:2}[a.zone]??3)-({bedroom:0,bathroom:1,loggia:2}[b.zone]??3)
       || taskTypeOrder(a)-taskTypeOrder(b) || a.label.localeCompare(b.label,"fr"));
@@ -1670,32 +1677,43 @@ function renderMyTasksDialog() {
   }
   document.querySelector("#myTasksList").innerHTML=groups.size
     ? [...groups].map(([zone,types])=>'<section class="my-tasks-group"><h3>'+zone+'</h3>'+types.map(type=>
-      '<label class="my-task-row"><span><strong>'+escapeSvgText(type.label)+'</strong><small>'+assignedCounts.get(type.id)+' tâche'+(assignedCounts.get(type.id)>1?'s':'')+' affectée'+(assignedCounts.get(type.id)>1?'s':'')+'</small></span><select data-my-task-type="'+escapeSvgText(type.id)+'" aria-label="Afficher '+escapeSvgText(type.label)+'"><option value="on" '+(!hidden.has(type.id)?'selected':'')+'>ON</option><option value="off" '+(hidden.has(type.id)?'selected':'')+'>OFF</option></select></label>'
+      '<label class="my-task-row"><span><strong>'+escapeSvgText(type.label)+'</strong><small>'+assignedCounts.get(type.id)+' tâche'+(assignedCounts.get(type.id)>1?'s':'')+' affectée'+(assignedCounts.get(type.id)>1?'s':'')+'</small></span><select data-my-task-type="'+escapeSvgText(type.id)+'" aria-label="Afficher '+escapeSvgText(type.label)+'"><option value="on" '+(myTaskDraft.get(type.id)?'selected':'')+'>ON</option><option value="off" '+(!myTaskDraft.get(type.id)?'selected':'')+'>OFF</option></select></label>'
     ).join('')+'</section>').join('')
     : '<p class="empty-state">Aucune tâche affectée et disponible pour le moment.</p>';
 }
 document.querySelector("#myTasksButton").onclick=()=>{
+  const snapshot=cloud.snapshot;
+  myTaskOriginal=new Map((snapshot.taskTypes || []).map(type=>[type.id,
+    personalTrackingTypeVisible(type,currentUser.id,snapshot.personalHiddenTaskTypeIds || [],snapshot.personalShownTaskTypeIds || [],defaultTrackingTaskVisible(type.zone,type.code))]));
+  myTaskDraft=new Map(myTaskOriginal);
   document.querySelector("#myTasksMessage").textContent="";
   renderMyTasksDialog();
+  updateMyTasksSaveButton();
   document.querySelector("#myTasksDialog").showModal();
 };
 document.querySelector("#closeMyTasks").onclick=()=>document.querySelector("#myTasksDialog").close();
-document.querySelector("#myTasksList").onchange=async(event)=>{
+document.querySelector("#myTasksList").onchange=(event)=>{
   const select=event.target.closest("[data-my-task-type]");
   if(!select || currentUser?.role!=="worker")return;
-  const hidden=new Set(cloud.snapshot.personalHiddenTaskTypeIds || []);
-  const previous=hidden.has(select.dataset.myTaskType)?"off":"on";
+  myTaskDraft.set(select.dataset.myTaskType,select.value==="on");
+  document.querySelector("#myTasksMessage").textContent="";
+  updateMyTasksSaveButton();
+};
+document.querySelector("#saveMyTasks").onclick=async()=>{
+  const changes=[...myTaskDraft].filter(([id,visible])=>myTaskOriginal.get(id)!==visible)
+    .map(([taskTypeId,visible])=>({taskTypeId,visible}));
+  if(!changes.length)return;
   const status=document.querySelector("#myTasksMessage");
-  select.disabled=true;status.textContent="Enregistrement…";
+  const button=document.querySelector("#saveMyTasks");
+  button.disabled=true;status.textContent="Enregistrement…";
   try {
-    await cloud.setMyTaskVisibility(select.dataset.myTaskType,select.value==="on");
-    project=await cloud.project();state.records=currentFloorRecords();
-    render();renderMyTasksDialog();
+    await cloud.setMyTaskVisibility(changes);
+    myTaskOriginal=new Map(myTaskDraft);
+    render();
     status.textContent="Votre affichage a été mis à jour.";
   } catch(error) {
-    select.value=previous;
     status.textContent=error.message || "Impossible d’enregistrer votre choix.";
-  } finally {select.disabled=false;}
+  } finally {updateMyTasksSaveButton();}
 };
 document.querySelector("#logoutButton").onclick=async()=>{
   await saveQueue;

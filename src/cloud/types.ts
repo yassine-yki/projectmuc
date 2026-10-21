@@ -8,14 +8,16 @@ export type Member = { user_id: string; role: Role; status: string; name: string
 export type Snapshot = {
   projectId: string; name: string; userId: string; role: Role; allowedTools?: string[];
   personalHiddenTaskTypeIds?: string[];
+  personalShownTaskTypeIds?: string[];
   taskTypes?: {id:string;code:string;zone:string;label:string;group_label?:string;source_column?:string;sort_order?:number;hidden?:boolean;hidden_user_ids?:string[]}[];
   tasks: CloudTask[]; assignments: Assignment[]; members: Member[]; cachedAt: string;
 };
 export function trackingTypeVisible(type: {hidden?: boolean; hidden_user_ids?: string[]}, userId: string): boolean {
   return !type.hidden && !(type.hidden_user_ids || []).includes(userId);
 }
-export function personalTrackingTypeVisible(type: {id: string; hidden?: boolean; hidden_user_ids?: string[]}, userId: string, personalHiddenIds: string[]): boolean {
-  return trackingTypeVisible(type,userId) && !personalHiddenIds.includes(type.id);
+export function personalTrackingTypeVisible(type: {id: string; hidden?: boolean; hidden_user_ids?: string[]}, userId: string, personalHiddenIds: string[], personalShownIds: string[], defaultVisible: boolean): boolean {
+  return trackingTypeVisible(type,userId) && !personalHiddenIds.includes(type.id)
+    && (personalShownIds.includes(type.id) || defaultVisible);
 }
 export type Payload = {
   progress: number; blocked: boolean; note: string; start_date: string | null; end_date: string | null;
