@@ -4,7 +4,8 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {webcrypto} from 'node:crypto';
-const source=readFileSync(new URL('../supabase/functions/accept-invitation/index.ts',import.meta.url),'utf8').replace(/^import .*;\r?\n/,'');
+const helper=readFileSync(new URL('../supabase/functions/_shared/password-credential.ts',import.meta.url),'utf8').replace(/^export /gm,'');
+const source=helper+'\n'+readFileSync(new URL('../supabase/functions/accept-invitation/index.ts',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,'');
 const code=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
 function setup(inv={expires_at:new Date(Date.now()+60000).toISOString(),used_at:null,revoked_at:null},creationError=null,completionError=null){
  let handler,created,completed,deleted;
@@ -15,8 +16,16 @@ function setup(inv={expires_at:new Date(Date.now()+60000).toISOString(),used_at:
 test('invitation endpoint creates a confirmed username account with protected invitation metadata',async()=>{
  const api=setup();const r=await api.send({token:'a'.repeat(64),username:'Test.User',password:'password123',role:'admin'});
  assert.equal(r.status,200);assert.equal(api.created().email,'test.user@users.pistache.invalid');assert.equal(api.created().email_confirm,true);
+ assert.match(api.created().password,/^MUC1!Aa0[a-f0-9]{64}$/);
  assert.equal(api.created().app_metadata.role,undefined);assert.equal(api.created().app_metadata.invitation_hash.length,64);
  assert.equal(api.completed().name,'complete_account_invitation');assert.equal(api.completed().args.p_user_id,'created-user');
+});
+test('a three-character password creates an account and two characters keep the invitation usable',async()=>{
+ const api=setup();
+ const short=await api.send({token:'a'.repeat(64),username:'person',password:'ab'});
+ assert.equal(short.status,400);assert.equal(api.created(),undefined);
+ const valid=await api.send({token:'a'.repeat(64),username:'person',password:'abc'});
+ assert.equal(valid.status,200);assert.match(api.created().password,/^MUC1!Aa0[a-f0-9]{64}$/);
 });
 test('a failed profile transaction removes the incomplete Auth user and preserves the invitation',async()=>{
  const api=setup(undefined,null,{code:'23505',message:'duplicate key value'});

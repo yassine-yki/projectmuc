@@ -1664,7 +1664,9 @@ function setRegistrationMode() {
   document.querySelector("#loginDescription").textContent=registrationMode?"Choisissez votre nom d’utilisateur et votre mot de passe. Aucun e-mail requis.":"Connectez-vous pour reprendre vos tâches et vos avancements.";
   document.querySelector("#loginIdentifierLabel").textContent=registrationMode?"Nom d’utilisateur":"Nom d’utilisateur ou e-mail existant";
   document.querySelector("#loginSubmit").textContent=registrationMode?"Créer mon compte":"Se connecter";
+  document.querySelector("#loginPasswordLabel").textContent=registrationMode?"Mot de passe (3 caractères minimum)":"Mot de passe";
   document.querySelector("#loginPassword").autocomplete=registrationMode?"new-password":"current-password";
+  document.querySelector("#loginPassword").minLength=registrationMode?3:0;
   document.querySelector("#continueAsGuest").hidden=registrationMode;
   document.querySelector("#guestModeDescription").hidden=registrationMode;
 }
@@ -1674,8 +1676,8 @@ document.querySelector("#loginForm").onsubmit=async(event)=>{
   const password=document.querySelector("#loginPassword").value;
   const loginError=document.querySelector("#loginError");
   loginError.hidden=true;
-  if(registrationMode&&password.length<8) {
-    loginError.textContent="Le mot de passe doit contenir au moins 8 caractères. Le lien d’invitation reste valide.";
+  if(registrationMode&&password.length<3) {
+    loginError.textContent="Le mot de passe doit contenir au moins 3 caractères. Le lien d’invitation reste valide.";
     loginError.hidden=false;
     return;
   }

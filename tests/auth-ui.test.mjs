@@ -21,9 +21,13 @@ test('invalid invitation remains visible with a retryable error',async()=>{
  const {get,submit}=setup('token',async()=>{throw new Error('Invitation expirée');});await submit();
  assert.equal(get('#loginError').textContent,'Invitation expirée');assert.equal(get('#loginSubmit').disabled,false);
 });
-test('a short password is rejected locally without consuming the invitation',async()=>{
- let calls=0;const {get,submit}=setup('token',async()=>{calls++;});get('#loginPassword').value='court';await submit();
- assert.equal(calls,0);assert.match(get('#loginError').textContent,/8 caractères/);assert.equal(get('#loginSubmit').disabled,false);
+test('an invitation accepts any password of three characters or more',async()=>{
+ let calls=0;const {get,submit}=setup('token',async()=>{calls++;});
+ assert.equal(get('#loginPassword').minLength,3);
+ get('#loginPassword').value='ab';await submit();
+ assert.equal(calls,0);assert.match(get('#loginError').textContent,/3 caractères/);
+ get('#loginPassword').value='abc';await submit();
+ assert.equal(calls,1);assert.equal(get('#loginSubmit').disabled,false);
 });
 test('normal login never calls account creation',async()=>{
  let signedIn=false;const {submit}=setup('',async()=>{throw new Error('Must not create');},async()=>{signedIn=true;return {};});await submit();assert.equal(signedIn,true);

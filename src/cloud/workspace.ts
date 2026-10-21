@@ -3,6 +3,7 @@ import { CURRENT_FLOOR, emptyProject, taskApplicable } from "../model.js";
 import { OfflineStore } from "./offline-store.js";
 import { SyncEngine } from "./sync.js";
 import { trackingTypeVisible, type Snapshot, type CloudTask, type Operation, type Receipt, type Member } from "./types.js";
+import { signInWithCompatiblePassword } from "../../supabase/functions/_shared/password-credential.js";
 
 const env = (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env || {};
 const url = env.VITE_SUPABASE_URL || "";
@@ -307,7 +308,7 @@ export async function login(identifier: string,password: string) {
   if (!client) throw new Error("Supabase n'est pas encore configuré.");
   const value=identifier.trim().toLowerCase();
   const email=value.includes("@")?value:value+"@users.pistache.invalid";
-  const {error}=await client.auth.signInWithPassword({email,password});
+  const {error}=await signInWithCompatiblePassword(email,password,credential=>client.auth.signInWithPassword({email,password:credential}));
   if(error) throw error;
   client.auth.startAutoRefresh();
   return restoreWorkspace();
