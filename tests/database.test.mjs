@@ -741,6 +741,42 @@ test('PISTACHE schema, RLS and transactional RPCs', async (t) => {
   for(const type of futureTypes.filter(type=>wanted[type.zone]))
     assert.equal(type.hidden,!wanted[type.zone].has(type.code),`future ${type.zone}:${type.code}`);
  });
+
+ await t.test('workers can toggle only their own assigned task types',async()=>{
+  await db.exec('reset role');
+  await db.exec(await readFile(new URL('../supabase/migrations/0030_worker_task_preferences.sql',import.meta.url),'utf8'));
+  await login(admin);
+  const personalProject=(await first('select public.create_mixed_use_project() id')).id;
+  await query('select public.set_project_member($1,$2,$3,$4)',[personalProject,worker,'worker','active']);
+  await query('select public.set_project_member($1,$2,$3,$4)',[personalProject,viewer,'viewer','active']);
+  const assigned=await first(`select rt.id task_id,tt.id type_id from public.room_tasks rt
+    join public.task_types tt on tt.id=rt.task_type_id
+    where rt.project_id=$1 and tt.zone='bedroom' and tt.code='partitions'
+    and rt.archived_at is null limit 1`,[personalProject]);
+  const other=await first("select id from public.task_types where project_id=$1 and zone='bedroom' and code='screed'",[personalProject]);
+  await query('select public.assign_task($1,$2)',[assigned.task_id,worker]);
+
+  await login(worker);
+  await reject('insert into public.member_task_preferences(project_id,user_id,task_type_id) values ($1,$2,$3)',[personalProject,viewer,assigned.type_id],/permission denied/);
+  await reject('select public.set_my_task_visibility($1,$2,$3)',[personalProject,other.id,false],/assigned_visible_task_required/);
+  await query('select public.set_my_task_visibility($1,$2,$3)',[personalProject,assigned.type_id,false]);
+  assert.equal((await first('select hidden from public.member_task_preferences where project_id=$1',[personalProject])).hidden,true);
+  assert.equal((await query('select id from public.task_types where id=$1',[assigned.type_id])).length,1);
+  await login(viewer);
+  assert.equal((await query('select * from public.member_task_preferences where project_id=$1',[personalProject])).length,0);
+  await reject('select public.set_my_task_visibility($1,$2,$3)',[personalProject,assigned.type_id,true],/worker_access_required/);
+
+  await login(admin);
+  const label=(await first('select label from public.task_types where id=$1',[assigned.type_id])).label;
+  await query('select public.manage_task_type($1,$2,$3,$4)',[assigned.type_id,label,true,[]]);
+  await login(worker);
+  await reject('select public.set_my_task_visibility($1,$2,$3)',[personalProject,assigned.type_id,true],/assigned_visible_task_required/);
+  await login(admin);
+  await query('select public.manage_task_type($1,$2,$3,$4)',[assigned.type_id,label,false,[]]);
+  await login(worker);
+  await query('select public.set_my_task_visibility($1,$2,$3)',[personalProject,assigned.type_id,true]);
+  assert.equal((await query('select * from public.member_task_preferences where project_id=$1',[personalProject])).length,0);
+ });
  });
 
 

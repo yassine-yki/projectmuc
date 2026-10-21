@@ -31,6 +31,10 @@
         <button type="button" class="button secondary" id="logoutButton">Se déconnecter</button>
       </div>
     </dialog>
+    <dialog class="project-dialog personal-tasks-dialog" id="myTasksDialog" aria-labelledby="myTasksTitle">
+      <div class="project-dialog-header dialog-heading"><div><span class="eyebrow">Affichage personnel</span><h2 id="myTasksTitle">Mes tâches</h2><p>Choisissez les tâches affectées à afficher dans votre suivi. Votre choix ne change rien pour les autres.</p></div><button type="button" class="button secondary" id="closeMyTasks">Fermer</button></div>
+      <div id="myTasksList" class="my-tasks-list"></div><p id="myTasksMessage" role="status" aria-live="polite"></p>
+    </dialog>
     <dialog class="project-dialog" id="projectDialog" aria-labelledby="projectDialogTitle">
       <div class="project-dialog-header">
         <span class="eyebrow">Ouverture</span>
@@ -53,7 +57,7 @@
         </div>
       </div>
       <span class="sr-only" id="importStatus" aria-live="polite"></span>
-      <div class="account-actions"><span id="sessionRole" class="role-chip"></span><span class="save-state" id="saveStatus" role="status"></span><button class="button secondary" type="button" id="modeSwitchButton" hidden>Changer d’outil</button><button class="button secondary" type="button" id="syncButton" hidden>Synchronisation</button><button class="button secondary" type="button" id="profileButton" hidden>Mon profil</button><button class="button secondary" type="button" id="signInButton" hidden>Se connecter</button></div>
+      <div class="account-actions"><span id="sessionRole" class="role-chip"></span><span class="save-state" id="saveStatus" role="status"></span><button class="button secondary" type="button" id="modeSwitchButton" hidden>Changer d’outil</button><button class="button secondary" type="button" id="myTasksButton" hidden>Mes tâches</button><button class="button secondary" type="button" id="syncButton" hidden>Synchronisation</button><button class="button secondary" type="button" id="profileButton" hidden>Mon profil</button><button class="button secondary" type="button" id="signInButton" hidden>Se connecter</button></div>
     </header>
     <nav id="adminNavigation" class="admin-navigation" aria-label="Espace administrateur" hidden><button type="button" data-admin-page="dashboard" class="active">Tableau de bord</button><button type="button" data-admin-page="team">Équipe & tâches</button><button type="button" data-admin-page="tasks">Gestion des tâches</button><button type="button" data-admin-page="history">Activité</button><button type="button" data-admin-page="photos">Photos</button><span class="admin-exports"><button type="button" id="exportExcel">Exporter Excel</button><button type="button" id="exportDailyPdf">Exporter PDF journalier</button></span></nav>
 

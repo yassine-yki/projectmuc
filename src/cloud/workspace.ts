@@ -90,9 +90,17 @@ export class CloudWorkspace {
     ]);
     const own = memberships.find(m => m.user_id === this.user.id && m.status === "active");
     if (!own) throw new Error("Vous n'avez plus accès à ce projet.");
-    const [rooms,types,tasks,assignments,floors,blocks,profiles]=await Promise.all([
+    const [rooms,types,tasks,assignments,floors,blocks,profiles,personalPreferences]=await Promise.all([
       ...["rooms","task_types","room_tasks","task_assignments","floors","blocks"].map(t=>allRows(t,projectId)),
       unwrap<any[] | null>(client!.from("profiles").select("id,display_name")).then(rows=>rows || []),
+      own.role === "worker"
+        ? unwrap<any[] | null>(client!.from("member_task_preferences").select("task_type_id,hidden").eq("project_id",projectId).eq("user_id",this.user.id))
+            .then(rows=>rows || [])
+            .catch(error=>{
+              if (/member_task_preferences.*(?:does not exist|schema cache|could not find)/i.test(error.message)) return [];
+              throw error;
+            })
+        : Promise.resolve([]),
     ]);
     const profileById=new Map(profiles.map((profile:any)=>[profile.id,profile]));
     const roomById=new Map(rooms.map(room=>[room.id,room]));
@@ -111,7 +119,8 @@ export class CloudWorkspace {
         record:{confirmedDay:t.confirmed_day,confirmedProgress:t.progress,lockedProgress:t.locked_progress??t.progress,progress:t.progress,blocked:t.blocked,note:t.note,startDate:t.start_date||"",endDate:t.end_date||""} }];
     });
     // RLS and the RPC remain authoritative; this snapshot is only a UI/cache view.
-    const snapshot: Snapshot = {projectId,name:project.name,userId:this.user.id,role:own.role,allowedTools:own.allowed_tools,tasks:cloudTasks,taskTypes:visibleTypes,
+    const snapshot: Snapshot = {projectId,name:project.name,userId:this.user.id,role:own.role,allowedTools:own.allowed_tools,
+      personalHiddenTaskTypeIds:personalPreferences.filter(preference=>preference.hidden).map(preference=>preference.task_type_id),tasks:cloudTasks,taskTypes:visibleTypes,
       assignments:assignments.filter(a=>!a.ended_at),members,cachedAt:new Date().toISOString()};
     await this.store.saveSnapshot(snapshot);
     this.snapshot=snapshot;
@@ -239,6 +248,19 @@ export class CloudWorkspace {
   async manageTaskType(id: string, label: string, hidden: boolean, hiddenUsers: string[]) {
     if (!navigator.onLine) throw new Error("Une connexion est nécessaire pour gérer les tâches.");
     await unwrap(client!.rpc("manage_task_type",{p_id:id,p_label:label,p_hidden:hidden,p_hidden_user_ids:hiddenUsers}));
+    await this.exclusive(()=>this.refresh(this.snapshot!.projectId));
+  }
+  async setMyTaskVisibility(taskTypeId: string, visible: boolean) {
+    if (!navigator.onLine) throw new Error("Une connexion est nécessaire pour régler vos tâches.");
+    try {
+      await unwrap(client!.rpc("set_my_task_visibility", {
+        p_project_id:this.snapshot!.projectId,p_task_type_id:taskTypeId,p_visible:visible,
+      }));
+    } catch(error) {
+      if (/schema cache|could not find the function/i.test((error as Error).message))
+        throw new Error("Appliquez d’abord la migration Supabase 0030 pour régler vos tâches.");
+      throw error;
+    }
     await this.exclusive(()=>this.refresh(this.snapshot!.projectId));
   }
   async managementTaskTypes() {

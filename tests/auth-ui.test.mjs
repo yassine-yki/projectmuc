@@ -32,6 +32,25 @@ test('an invitation accepts any password of three characters or more',async()=>{
 test('normal login never calls account creation',async()=>{
  let signedIn=false;const {submit}=setup('',async()=>{throw new Error('Must not create');},async()=>{signedIn=true;return {};});await submit();assert.equal(signedIn,true);
 });
+test('worker task settings list only their assigned types and preserve personally hidden ones',()=>{
+ const node={innerHTML:''};
+ const context=vm.createContext({
+   cloud:{snapshot:{
+     taskTypes:[{id:'partitions-type',zone:'bedroom',code:'partitions',label:'Cloisons chambre'},
+       {id:'screed-type',zone:'bedroom',code:'screed',label:'Chape chambre'}],
+     tasks:[{id:'task-1',key:'201:bedroom:partitions',active:true},{id:'task-2',key:'201:bedroom:screed',active:true}],
+     assignments:[{room_task_id:'task-1',assignee_id:'worker',ended_at:null},{room_task_id:'task-2',assignee_id:'other',ended_at:null}],
+     personalHiddenTaskTypeIds:['partitions-type'],
+   }},
+   currentUser:{id:'worker',role:'worker'},document:{querySelector:()=>node},
+   taskTypeOrder:()=>0,escapeSvgText:value=>value,
+ });
+ vm.runInContext(source.slice(source.indexOf('function renderMyTasksDialog()'),source.indexOf('document.querySelector("#myTasksButton").onclick')),context);
+ vm.runInContext('renderMyTasksDialog()',context);
+ assert.match(node.innerHTML,/Cloisons chambre/);
+ assert.match(node.innerHTML,/value="off" selected/);
+ assert.doesNotMatch(node.innerHTML,/Chape chambre/);
+});
 test('guest mode cannot edit, persist, confirm or cancel existing drafts', async()=>{
   const context=vm.createContext({localMode:true,currentUser:{role:'viewer'},Promise});
   vm.runInContext(source.slice(source.indexOf('function canEditSelectedRoom()'),source.indexOf('function roomTypeId(')),context);
