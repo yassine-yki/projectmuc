@@ -1,7 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { R2_BLOCKS, R2_ROOMS, ROOMS_BY_FLOOR } from "../src/project-data.js";
-import { taskApplicable, taskGroup, tasksByZone } from "../src/model.js";
+import { DEFAULT_TRACKING_TASK_IDS, defaultTrackingTaskVisible, taskApplicable, taskGroup, tasksByZone } from "../src/model.js";
+
+test("only the requested chamber and bathroom tasks start visible",()=>{
+  assert.deepEqual(DEFAULT_TRACKING_TASK_IDS.bedroom,["partitions","screed"]);
+  assert.deepEqual(DEFAULT_TRACKING_TASK_IDS.bathroom,["waterproofing","wall-render","wall-render-benthami","floor-screed"]);
+  for(const zone of ["bedroom","bathroom"] as const){
+    const visible=tasksByZone[zone].filter(task=>defaultTrackingTaskVisible(zone,task.id)).map(task=>task.id);
+    assert.deepEqual(visible,DEFAULT_TRACKING_TASK_IDS[zone]);
+  }
+});
 
 test("aquapanel replacement is a separate bedroom task in Cloisons",()=>{
   const tasks=tasksByZone.bedroom;

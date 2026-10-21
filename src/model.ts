@@ -103,6 +103,16 @@ export const tasksByZone = {
 
 export type ZoneId = keyof typeof tasksByZone;
 
+export const DEFAULT_TRACKING_TASK_IDS: Record<ZoneId, readonly string[]> = {
+  bedroom: ["partitions", "screed"],
+  bathroom: ["waterproofing", "wall-render", "wall-render-benthami", "floor-screed"],
+  loggia: [],
+};
+
+export function defaultTrackingTaskVisible(zone: ZoneId, code: string): boolean {
+  return zone === "loggia" || DEFAULT_TRACKING_TASK_IDS[zone].includes(code);
+}
+
 const taskGroupRanges: Record<ZoneId, { label: string; columns: string[] }[]> = {
   bathroom: [
     { label: "Plomberie sol", columns: ["E", "F", "G"] },

@@ -1,4 +1,4 @@
-import { CURRENT_FLOOR, emptyProject, projectDay, lockedProgress, taskApplicable, taskGroup, tasksByZone } from "./model.js";
+import { CURRENT_FLOOR, defaultTrackingTaskVisible, emptyProject, projectDay, lockedProgress, taskApplicable, taskGroup, tasksByZone } from "./model.js";
 import { cleanDxfText, roomNumberFromText } from "./dxf-identification.js";
 import { createProjectRepository } from "./repositories/index.js";
 import { ROOMS_BY_FLOOR } from "./project-data.js";
@@ -505,7 +505,7 @@ function roomMatchesFilters(number) {
 
 function currentTasks(zone=state.selectedZone) {
   const base=tasksByZone[zone];
-  if(localMode || !cloud?.snapshot?.taskTypes) return base;
+  if(localMode || !cloud?.snapshot?.taskTypes) return base.filter(task=>defaultTrackingTaskVisible(zone,task.id));
   return base.flatMap(task=>{
     const type=cloud.snapshot.taskTypes.find(t=>t.zone===zone && t.code===task.id && trackingTypeVisible(t,currentUser?.id || cloud.snapshot.userId));
     return type ? [{...task,label:type.label}] : [];

@@ -716,6 +716,31 @@ test('PISTACHE schema, RLS and transactional RPCs', async (t) => {
       and tt.code='wall-render-benthami' and rt.archived_at is null`,[future])).total,
     (await first("select count(*)::int total from public.rooms where project_id=$1 and room_type<>'standard'",[future])).total);
  });
+
+ await t.test('requested task defaults hide other tracking tasks without deleting them',async()=>{
+  const migration=await readFile(new URL('../supabase/migrations/0029_default_tracking_tasks.sql',import.meta.url),'utf8');
+  await db.exec('reset role');
+  await db.exec(migration);
+  await login(admin);
+  const types=await query('select id,zone,code,hidden from public.list_task_types_for_management($1)',[project]);
+  const wanted={bedroom:new Set(['partitions','screed']),bathroom:new Set(['waterproofing','wall-render','wall-render-benthami','floor-screed'])};
+  for(const type of types.filter(type=>wanted[type.zone]))
+    assert.equal(type.hidden,!wanted[type.zone].has(type.code),`${type.zone}:${type.code}`);
+  assert.ok(types.some(type=>type.hidden));
+
+  const optional=types.find(type=>type.zone==='bedroom'&&type.hidden);
+  assert.ok(optional);
+  await query('select public.manage_task_type($1,$2,$3,$4)',[optional.id,'Tâche réactivée',false,[]]);
+  await db.exec('reset role');
+  await db.exec(migration);
+  await login(admin);
+  assert.equal((await first('select hidden from public.list_task_types_for_management($1) where id=$2',[project,optional.id])).hidden,false);
+
+  const future=(await first('select public.create_mixed_use_project() id')).id;
+  const futureTypes=await query('select zone,code,hidden from public.list_task_types_for_management($1)',[future]);
+  for(const type of futureTypes.filter(type=>wanted[type.zone]))
+    assert.equal(type.hidden,!wanted[type.zone].has(type.code),`future ${type.zone}:${type.code}`);
+ });
  });
 
 
